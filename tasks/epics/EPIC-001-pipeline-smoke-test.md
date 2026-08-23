@@ -27,9 +27,10 @@ game logic belongs here.
 - TICKET-002 — Add pipeline version-check script (seeded wrong on purpose
   once, to prove the reviewer's reject → fix → re-review loop actually
   works, not just the happy path)
+- TICKET-003 — Add pipeline info script with --format flag (narrowly
+  scoped acceptance criteria on purpose, so a real bug can exist outside
+  them for gdo-qa to find)
 
 ## Done when
 
-TICKET-001 and TICKET-002 are `done`. This epic can gain more tickets later
-if a phase needs a new kind of fixture to test against (e.g. Phase 5 wants
-one QA can find a real bug in).
+TICKET-001, TICKET-002, and TICKET-003 are `done`.
