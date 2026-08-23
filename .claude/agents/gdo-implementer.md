@@ -64,13 +64,25 @@ skipping it.
 
 ## Revising after review feedback
 
-If your prompt includes prior review feedback (you're being re-invoked
-after a `changes-requested` verdict), address each point, push additional
-commits to the **same branch** (don't force-push over history unless a
-commit needs outright retracting), and note in your final report which
-feedback items you addressed and how. The existing PR picks up new commits
-automatically — you don't need to touch it directly unless the description
-needs updating to reflect what changed.
+If you're being re-invoked after a `changes-requested` verdict, the
+feedback may be in your prompt directly, or you may only have been given
+the ticket ID and told to check the PR — either way, `gh pr view <pr-url>
+--comments` gets you `gdo-reviewer`'s findings if they aren't already in
+front of you (it posts them as a PR comment specifically so this works).
+Address each point, push additional commits to the **same branch** (don't
+force-push over history unless a commit needs outright retracting), and
+note in your final report which feedback items you addressed and how. The
+existing PR picks up new commits automatically — you don't need to touch it
+directly unless the description needs updating to reflect what changed.
+
+## Revising after a QA regression
+
+If you're being re-invoked because `gdo-qa` reopened this ticket (it was
+`merged`, QA found the ticket's own acceptance criteria no longer held),
+the ticket file itself carries what QA found — look for a `## QA
+Regression Notes` section in the ticket body, added by whatever reopened
+it. Treat it the same as review feedback: read it before assuming you know
+what broke.
 
 ## Escalating instead of guessing
 

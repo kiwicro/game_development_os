@@ -2,7 +2,7 @@
 name: gdo-qa-run
 description: Run QA against a merged ticket - re-verify its acceptance criteria on mainline, scoped exploratory pass, file new BUG-NNN tickets for anything found outside scope, reopen the ticket if its own criteria regressed. Use to process a ticket sitting at merged.
 user-invocable: true
-allowed-tools: Read, Write, Glob, Bash(python .claude/scripts/gdo_board.py:*), Bash(git pull:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Agent, AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Bash(python .claude/scripts/gdo_board.py:*), Bash(git pull:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Agent, AskUserQuestion
 ---
 
 # /gdo-qa-run — Post-Merge QA
@@ -36,8 +36,18 @@ and stop (e.g. `in-review` means `/gdo-review` hasn't approved it yet).
    `python .claude/scripts/gdo_board.py set-status <ID> qa`, commit.
 
    **If the ticket's own acceptance criteria are NOT MET (regression):**
-   - `python .claude/scripts/gdo_board.py set-status <ID> in-progress`,
-     commit.
+   - `Edit` the ticket file to append a `## QA Regression Notes` section to
+     its body (after `## Notes` if present) with the agent's
+     acceptance-criteria findings verbatim — this is what a re-invoked
+     implementer reads, since there's no open PR left to comment on once
+     something's merged.
+   - Read the ticket's current `attempts`, then
+     `python .claude/scripts/gdo_board.py set-status <ID> in-progress
+     --attempts <current+1>`, commit. (Same counter and cap as review
+     rejections — see `CLAUDE.md`.)
+   - If `attempts` reached 3: `set-status <ID> blocked` instead, commit,
+     and stop — a QA regression this persistent needs a human look, not
+     another automatic pass.
    - Tell the user plainly: this ticket passed review but broke on merge.
      Further re-implementation is a manual step for now — run
      `/gdo-implement <ID>` again once ready (Phase 6's orchestrator will

@@ -44,7 +44,8 @@ epic: EPIC-002
 title: Inventory drag-and-drop
 status: backlog
 depends_on: []          # list of ticket IDs that must be `done` first
-attempts: 0              # implementer attempts on the current review cycle
+attempts: 0              # rework count: incremented by a review rejection
+                          # OR a QA regression, same counter, cap 3 either way
 pr_url: null
 owner_agent: null        # set by the orchestrator while a ticket is active
 created: 2026-08-23
@@ -82,6 +83,22 @@ backlog → ready → in-progress → in-review ─┬─→ merged → qa ─�
                            an unrelated bug QA finds becomes a new BUG-NNN
                            instead of reopening this ticket)
 ```
+
+`attempts` is one counter shared by both rework paths above — a review
+rejection and a QA regression both increment it, both share the same cap
+of 3. At 3, the ticket goes to `blocked` instead of reopening again; a
+human needs to look at it.
+
+**Rework feedback has to be durable, not just conversational**, since the
+agent that re-does the work may be a fresh spawn with no memory of why it's
+being re-invoked:
+- Review rejections: `gdo-reviewer` posts its findings as a real PR
+  comment (`gh pr comment`), not just in its returned report. A re-invoked
+  implementer reads `gh pr view <pr> --comments` if the feedback isn't
+  already in its prompt.
+- QA regressions: there's no open PR left once something's merged, so
+  whatever reopens the ticket appends a `## QA Regression Notes` section to
+  the ticket file's own body instead.
 
 `blocked` is a side state, enterable from any status, for two reasons only:
 (1) `depends_on` includes a ticket that isn't `done`, or (2) `attempts`
