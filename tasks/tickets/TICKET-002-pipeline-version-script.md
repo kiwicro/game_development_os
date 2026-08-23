@@ -2,10 +2,10 @@
 id: TICKET-002
 epic: EPIC-001
 title: Add pipeline version-check script
-status: in-progress
+status: in-review
 depends_on: []
 attempts: 0
-pr_url: null
+pr_url: https://github.com/kiwicro/game_development_os/pull/2
 owner_agent: null
 created: 2026-08-23
 ---
