@@ -1,0 +1,719 @@
+<title>The Game Development Cycle</title>
+<style>
+  :root {
+    --paper: #eff4f3;
+    --surface: #ffffff;
+    --surface-2: #e4ece9;
+    --ink: #101817;
+    --ink-dim: #47605a;
+    --line: rgba(16, 24, 23, 0.12);
+    --line-strong: rgba(16, 24, 23, 0.22);
+    --accent: #0d7c74;
+    --accent-ink: #ffffff;
+    --accent-soft: rgba(13, 124, 116, 0.12);
+    --sev-open: #b6412f;
+    --sev-review: #a9761c;
+    --sev-done: #2c7a4b;
+    --shadow: 0 1px 2px rgba(16, 24, 23, 0.04), 0 8px 24px rgba(16, 24, 23, 0.05);
+    --mono: ui-monospace, "Cascadia Code", "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0a1211;
+      --surface: #101a19;
+      --surface-2: #16211f;
+      --ink: #e9f2f0;
+      --ink-dim: #8fada6;
+      --line: rgba(233, 242, 240, 0.1);
+      --line-strong: rgba(233, 242, 240, 0.2);
+      --accent: #39d6c4;
+      --accent-ink: #06201d;
+      --accent-soft: rgba(57, 214, 196, 0.14);
+      --sev-open: #e07a68;
+      --sev-review: #e0b25b;
+      --sev-done: #6bc98d;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 28px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #0a1211;
+    --surface: #101a19;
+    --surface-2: #16211f;
+    --ink: #e9f2f0;
+    --ink-dim: #8fada6;
+    --line: rgba(233, 242, 240, 0.1);
+    --line-strong: rgba(233, 242, 240, 0.2);
+    --accent: #39d6c4;
+    --accent-ink: #06201d;
+    --accent-soft: rgba(57, 214, 196, 0.14);
+    --sev-open: #e07a68;
+    --sev-review: #e0b25b;
+    --sev-done: #6bc98d;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 28px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection { background: var(--accent-soft); }
+
+  a { color: var(--accent); }
+
+  .wrap {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 64px 28px 120px;
+  }
+
+  header.hero {
+    margin-bottom: 56px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .eyebrow::before {
+    content: "";
+    width: 22px;
+    height: 1.5px;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: clamp(28px, 4.4vw, 40px);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+
+  .dek {
+    font-size: 17px;
+    color: var(--ink-dim);
+    max-width: 62ch;
+    margin: 0;
+    text-wrap: pretty;
+  }
+
+  /* pipeline overview strip */
+  .pipeline {
+    margin: 40px 0 0;
+    padding: 22px 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+  }
+
+  .pipeline-track {
+    display: flex;
+    align-items: center;
+    min-width: max-content;
+  }
+
+  .pipeline-node {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    padding: 7px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface-2);
+    color: var(--ink-dim);
+  }
+
+  .pipeline-node.loop {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: transparent;
+  }
+
+  .pipeline-conn {
+    width: 26px;
+    height: 1.5px;
+    background: repeating-linear-gradient(90deg, var(--line-strong) 0 4px, transparent 4px 8px);
+    flex: none;
+  }
+
+  /* phase sections */
+  .phase {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 0 24px;
+    margin-top: 8px;
+  }
+
+  .phase-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .phase-num {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+  }
+
+  .phase-line {
+    width: 1.5px;
+    flex: 1;
+    background: var(--line-strong);
+    margin: 6px 0;
+  }
+
+  .phase:last-of-type .phase-line { display: none; }
+
+  .phase-body {
+    padding-bottom: 52px;
+  }
+
+  .phase-title {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 600;
+    margin: 4px 0 4px;
+    letter-spacing: -0.005em;
+  }
+
+  .phase-sub {
+    color: var(--ink-dim);
+    font-size: 14.5px;
+    margin: 0 0 18px;
+  }
+
+  .phase-content p {
+    margin: 0 0 14px;
+    max-width: 62ch;
+  }
+
+  .phase-content p:last-child { margin-bottom: 0; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-top: 16px;
+    box-shadow: var(--shadow);
+  }
+
+  .card h4 {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin: 0 0 12px;
+    font-weight: 600;
+  }
+
+  .card ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+
+  .card li {
+    margin-bottom: 7px;
+    font-size: 14.5px;
+  }
+
+  .card li:last-child { margin-bottom: 0; }
+
+  .card li b { color: var(--ink); font-weight: 600; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  @media (max-width: 620px) {
+    .two-col { grid-template-columns: 1fr; }
+    .phase { grid-template-columns: 40px 1fr; gap: 0 16px; }
+  }
+
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .tag {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    padding: 5px 10px;
+    border-radius: 100px;
+    border: 1px solid var(--line-strong);
+    color: var(--ink-dim);
+    background: var(--surface-2);
+  }
+
+  /* bug lifecycle */
+  .lifecycle {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0;
+    margin-top: 16px;
+  }
+
+  .life-step {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+
+  .life-step.open { background: color-mix(in srgb, var(--sev-open) 16%, transparent); color: var(--sev-open); }
+  .life-step.review { background: color-mix(in srgb, var(--sev-review) 16%, transparent); color: var(--sev-review); }
+  .life-step.done { background: color-mix(in srgb, var(--sev-done) 16%, transparent); color: var(--sev-done); }
+
+  .life-arrow {
+    color: var(--ink-dim);
+    padding: 0 6px;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+
+  /* PR checklist */
+  .checklist { list-style: none; margin: 0; padding: 0; }
+  .checklist li {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 14.5px;
+    margin-bottom: 10px;
+  }
+  .checklist li::before {
+    content: "";
+    width: 15px;
+    height: 15px;
+    border-radius: 4px;
+    border: 1.5px solid var(--line-strong);
+    flex: none;
+    margin-top: 2px;
+  }
+
+  /* tools table */
+  .tools {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin-top: 16px;
+  }
+  .tools th, .tools td {
+    text-align: left;
+    padding: 10px 14px 10px 0;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  .tools th {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    font-weight: 600;
+  }
+  .tools td:first-child { font-weight: 600; white-space: nowrap; }
+  .tools-wrap { overflow-x: auto; }
+
+  footer {
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--ink-dim);
+    font-family: var(--mono);
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">Reference — Production Pipeline</div>
+    <h1>The Game Development Cycle</h1>
+    <p class="dek">
+      How a game moves from an idea to a shipped, patched, live product — the design work,
+      the task breakdown, the writing, the code, the review, and the testing that turns a
+      pitch into something players can run.
+    </p>
+
+    <div class="pipeline">
+      <div class="pipeline-track">
+        <span class="pipeline-node">concept</span>
+        <span class="pipeline-conn"></span>
+        <span class="pipeline-node">design</span>
+        <span class="pipeline-conn"></span>
+        <span class="pipeline-node">tasking</span>
+        <span class="pipeline-conn"></span>
+        <span class="pipeline-node">writing</span>
+        <span class="pipeline-conn"></span>
+        <span class="pipeline-node">code</span>
+        <span class="pipeline-conn"></span>
+        <span class="pipeline-node">review</span>
+        <span class="pipeline-conn"></span>
+        <span class="pipeline-node">qa</span>
+        <span class="pipeline-conn"></span>
+        <span class="pipeline-node">cert / release</span>
+        <span class="pipeline-conn"></span>
+        <span class="pipeline-node loop">live ops ↻</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <div class="phase">
+      <div class="phase-rail"><div class="phase-num">01</div><div class="phase-line"></div></div>
+      <div class="phase-body">
+        <h3 class="phase-title">Concept &amp; Pitch</h3>
+        <p class="phase-sub">Before there's a plan, there's a bet worth making</p>
+        <div class="phase-content">
+          <p>
+            Someone — a director, a designer, sometimes the whole studio in a jam — writes
+            a one- or two-page pitch: the core fantasy, the genre comparison ("it's X meets Y"),
+            why it's fun, and why now. For funded studios this goes to leadership or a publisher
+            for greenlight; for indies it's the filter that decides what gets a prototype.
+          </p>
+          <div class="card">
+            <h4>Output</h4>
+            <ul>
+              <li><b>Pitch deck / one-pager</b> — hook, audience, comparables, scope estimate</li>
+              <li><b>Vertical slice target</b> — the single scene or loop that proves the fantasy</li>
+              <li><b>Risk list</b> — the two or three things that could kill the project technically or creatively</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-rail"><div class="phase-num">02</div><div class="phase-line"></div></div>
+      <div class="phase-body">
+        <h3 class="phase-title">Game Design</h3>
+        <p class="phase-sub">Turning a fantasy into systems, rules, and a document people can build from</p>
+        <div class="phase-content">
+          <p>
+            Designers break the pitch into mechanics: core loop, progression, economy, controls,
+            level structure. This is where prototyping happens — grey-box levels, spreadsheet
+            economies, paper mockups — to test whether the fun actually holds up before a single
+            production asset gets built. The output is the <b>Game Design Document (GDD)</b>, though
+            most modern teams keep it as a living wiki rather than a static PDF, since it changes
+            weekly through the whole project.
+          </p>
+          <div class="two-col">
+            <div class="card">
+              <h4>Design artifacts</h4>
+              <ul>
+                <li>Core loop &amp; pillars (3–5 things the game is always true to)</li>
+                <li>Systems specs — combat, economy, AI, progression</li>
+                <li>Level &amp; encounter briefs</li>
+                <li>UX flows and menu wireframes</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h4>Who's involved</h4>
+              <ul>
+                <li>Game / systems designers</li>
+                <li>Creative director (holds the pillars)</li>
+                <li>Technical director (feasibility pass)</li>
+                <li>Lead artist (visual target)</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-rail"><div class="phase-num">03</div><div class="phase-line"></div></div>
+      <div class="phase-body">
+        <h3 class="phase-title">Planning &amp; Task Breakdown</h3>
+        <p class="phase-sub">The point where design intent becomes tickets someone can pick up</p>
+        <div class="phase-content">
+          <p>
+            A design doc isn't actionable until it's decomposed. Producers and leads turn each
+            system or feature into <b>epics</b>, then into scoped <b>tickets</b> small enough to
+            estimate and finish inside a sprint or milestone — usually a day to a week of work each.
+            This is also where dependencies surface: a combat ability ticket blocks on an animation
+            rig, which blocks on a character being approved in art review.
+          </p>
+          <p>
+            Games commonly run on a hybrid cadence: <b>Scrum-style sprints</b> for engineering and
+            tools work, and <b>milestone/Kanban</b> flow for content and art, since art and level
+            work rarely fits a clean two-week box.
+          </p>
+          <div class="card">
+            <h4>A well-formed ticket</h4>
+            <ul>
+              <li><b>Context</b> — link to the GDD section or design brief it implements</li>
+              <li><b>Acceptance criteria</b> — the observable behavior that makes it "done"</li>
+              <li><b>Scope</b> — one feature slice, not "implement inventory system"</li>
+              <li><b>Dependencies</b> — assets, other tickets, or design decisions it's blocked on</li>
+              <li><b>Owner and estimate</b></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-rail"><div class="phase-num">04</div><div class="phase-line"></div></div>
+      <div class="phase-body">
+        <h3 class="phase-title">Content &amp; Narrative Writing</h3>
+        <p class="phase-sub">Story, dialogue, and text run their own pipeline alongside code</p>
+        <div class="phase-content">
+          <p>
+            Narrative designers and writers work from the same GDD pillars but on their own track:
+            story outline → beat sheet → script draft → editorial pass → implementation into the
+            engine's dialogue or quest system. Because writing has to survive contact with systems
+            (branching dialogue needs to actually branch in the tool, barks need to fit in a text box,
+            VO needs a recording pass and lip-sync), writers work tightly with the tools/UI programmer
+            who owns the narrative pipeline.
+          </p>
+          <div class="two-col">
+            <div class="card">
+              <h4>Writing pipeline</h4>
+              <ul>
+                <li>Outline &amp; character bibles</li>
+                <li>Beat sheets reviewed by design + narrative director</li>
+                <li>Script draft in a dialogue tool (Yarn Spinner, ink, articy:draft, or custom)</li>
+                <li>Editorial / continuity pass</li>
+                <li>VO recording, localization hand-off, in-engine implementation</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h4>Watch for</h4>
+              <ul>
+                <li>Text length vs. UI space and subtitle timing</li>
+                <li>Localization string IDs set up before, not after, writing</li>
+                <li>Branch state tracked so QA can actually test all paths</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-rail"><div class="phase-num">05</div><div class="phase-line"></div></div>
+      <div class="phase-body">
+        <h3 class="phase-title">Production — Writing the Code</h3>
+        <p class="phase-sub">Engineers pick up tickets and build the systems designers specified</p>
+        <div class="phase-content">
+          <p>
+            Each engineer branches off the mainline, implements the ticket's acceptance criteria,
+            and works against the engine (Unity, Unreal, Godot, or in-house) plus whatever automated
+            tests exist for that system. Games differ from most software here in two ways: binary,
+            un-mergeable assets (scenes, textures, audio) push many studios toward <b>trunk-based
+            development with file locking</b> (Perforce is still dominant for this reason) rather
+            than long-lived Git feature branches; and a build has to actually run on target hardware,
+            so engineers are checking frame time and memory budget as part of "done," not just logic
+            correctness.
+          </p>
+          <div class="two-col">
+            <div class="card">
+              <h4>Day-to-day loop</h4>
+              <ul>
+                <li>Pick up ticket → sync latest → branch or lock files</li>
+                <li>Implement against acceptance criteria</li>
+                <li>Local test in editor + on target platform/devkit</li>
+                <li>Write or update automated tests where the system allows it</li>
+                <li>Open PR / changelist for review</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h4>Continuous integration</h4>
+              <ul>
+                <li>Automated build on every merge (often per-platform)</li>
+                <li>Smoke tests + unit tests gate the merge</li>
+                <li>Nightly full builds distributed for playtesting</li>
+                <li>Static analysis / lint for engine-specific gotchas</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-rail"><div class="phase-num">06</div><div class="phase-line"></div></div>
+      <div class="phase-body">
+        <h3 class="phase-title">Pull Requests &amp; Code Review</h3>
+        <p class="phase-sub">A second set of eyes before anything reaches the mainline</p>
+        <div class="phase-content">
+          <p>
+            Review in games covers more than diff-reading: reviewers often need to pull the branch
+            and run it, since a logic change can be correct on paper and still break at 30fps under
+            load, or read a physics tuning value that's clearly wrong only when you see it move.
+            Non-programmer reviewers (design, art) may sign off on their own domain — a designer
+            approving a tuning change, an artist approving a shader — separate from the technical
+            approval.
+          </p>
+          <div class="card">
+            <h4>Typical review checklist</h4>
+            <ul class="checklist">
+              <li>Meets the ticket's acceptance criteria, nothing extra sneaked in</li>
+              <li>Runs in editor and on a target build, not just "works on my machine"</li>
+              <li>No obvious perf regression — profiler check for hot-path changes</li>
+              <li>Tests added or updated where the system supports it</li>
+              <li>No orphaned assets, debug logging, or commented-out code left in</li>
+              <li>Naming and structure match the project's conventions</li>
+            </ul>
+          </div>
+          <div class="tag-row">
+            <span class="tag">GitHub / GitLab PRs</span>
+            <span class="tag">Perforce changelists + Swarm</span>
+            <span class="tag">Gerrit</span>
+            <span class="tag">Crucible</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-rail"><div class="phase-num">07</div><div class="phase-line"></div></div>
+      <div class="phase-body">
+        <h3 class="phase-title">QA &amp; Bug Testing</h3>
+        <p class="phase-sub">Where "it compiles" turns into "it's actually fun and doesn't crash"</p>
+        <div class="phase-content">
+          <p>
+            Game QA runs on several tracks at once, because no single method catches everything:
+            automated tests catch regressions fast but can't judge feel; scripted test passes catch
+            known-risk areas methodically; and exploratory/playtesting is what actually finds the bugs
+            nobody thought to write a test for.
+          </p>
+          <div class="two-col">
+            <div class="card">
+              <h4>Testing types</h4>
+              <ul>
+                <li><b>Unit / integration tests</b> — engineering-owned, run in CI</li>
+                <li><b>Smoke tests</b> — does the build boot, load a level, not crash in 5 minutes</li>
+                <li><b>Scripted test passes</b> — QA follows a written test plan per feature</li>
+                <li><b>Exploratory / ad-hoc</b> — QA tries to break it, no script</li>
+                <li><b>Playtesting</b> — internal or external players judge feel, difficulty, clarity</li>
+                <li><b>Regression pass</b> — re-verify previously fixed bugs before each milestone</li>
+                <li><b>Soak / stability tests</b> — long-run sessions for memory leaks and crashes</li>
+                <li><b>Cert / compliance testing</b> — platform holder requirements before submission</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h4>Bug lifecycle</h4>
+              <div class="lifecycle">
+                <span class="life-step open">Reported</span><span class="life-arrow">→</span>
+                <span class="life-step open">Triaged</span><span class="life-arrow">→</span>
+                <span class="life-step review">Assigned</span><span class="life-arrow">→</span>
+                <span class="life-step review">Fixed</span><span class="life-arrow">→</span>
+                <span class="life-step done">Verified</span><span class="life-arrow">→</span>
+                <span class="life-step done">Closed</span>
+              </div>
+              <p style="margin-top:14px; font-size:13.5px; color:var(--ink-dim);">
+                A good report has repro steps, expected vs. actual behavior, build number,
+                and — ideally — a video clip. Triage sets severity (crash/blocker → minor/cosmetic)
+                and priority separately, since a common cosmetic bug can outrank a rare crash.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-rail"><div class="phase-num">08</div><div class="phase-line"></div></div>
+      <div class="phase-body">
+        <h3 class="phase-title">Build, Certification &amp; Release</h3>
+        <p class="phase-sub">Alpha, beta, gold — and the platform holder's own gate</p>
+        <div class="phase-content">
+          <p>
+            As the project matures, milestones tighten: <b>alpha</b> (feature complete, still buggy),
+            <b>beta</b> (content complete, stabilizing, feature-frozen), <b>code freeze</b>
+            (bug fixes only), <b>gold / RC</b> (release candidate). Console platforms (PlayStation,
+            Xbox, Switch) add a formal <b>certification</b> pass against their technical requirements
+            checklist — save handling, suspend/resume, controller disconnect behavior, age rating
+            compliance — which can bounce a submission back if failed. PC releases go through storefront
+            review instead (Steam, Epic), which is lighter but still has content and functionality checks.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-rail"><div class="phase-num">09</div></div>
+      <div class="phase-body">
+        <h3 class="phase-title">Live Ops &amp; the Loop Back</h3>
+        <p class="phase-sub">Shipping isn't the end of the cycle — it's where the loop starts feeding itself</p>
+        <div class="phase-content">
+          <p>
+            Post-launch, telemetry and player feedback become design input: retention curves,
+            crash reports, community bug threads, and balance complaints all turn back into new
+            tickets, which go through the same design → task → write/code → review → QA loop as
+            everything before launch — just faster, and against a live audience. Patches, seasonal
+            content, and balance passes run this loop indefinitely for live-service games; smaller
+            or narrative titles run a shorter tail of day-one patches and then wind down.
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <div class="tools-wrap">
+    <table class="tools">
+      <thead>
+        <tr><th>Phase</th><th>Common tools</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Design docs</td><td>Confluence, Notion, Google Docs, GDD wikis</td></tr>
+        <tr><td>Task tracking</td><td>Jira, Shortcut, Hansoft, Azure DevOps, Trello</td></tr>
+        <tr><td>Narrative tools</td><td>articy:draft, ink, Yarn Spinner, Twine</td></tr>
+        <tr><td>Version control</td><td>Perforce (Helix Core), Git + Git LFS, Plastic SCM</td></tr>
+        <tr><td>Code review</td><td>GitHub/GitLab PRs, Perforce Swarm, Gerrit, Crucible</td></tr>
+        <tr><td>CI / builds</td><td>Jenkins, TeamCity, GitLab CI, Unreal Horde, BuildKite</td></tr>
+        <tr><td>Bug tracking</td><td>Jira, Bugzilla, Shortcut, in-house tools</td></tr>
+        <tr><td>QA test management</td><td>TestRail, Xray, spreadsheets for small teams</td></tr>
+        <tr><td>Playtest &amp; telemetry</td><td>PlayFab, GameAnalytics, in-house event pipelines</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>game-dev-cycle.html — reference doc</footer>
+
+</div>
