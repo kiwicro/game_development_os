@@ -2,7 +2,7 @@
 id: BUG-001
 epic: EPIC-001
 title: info.py crashes with unhandled traceback on malformed/unsupported --format
-status: merged
+status: qa
 depends_on: []
 attempts: 0
 pr_url: https://github.com/kiwicro/game_development_os/pull/4
