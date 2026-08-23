@@ -2,7 +2,7 @@
 id: TICKET-001
 epic: EPIC-001
 title: Add pipeline smoke-test script
-status: qa
+status: done
 depends_on: []
 attempts: 0
 pr_url: https://github.com/kiwicro/game_development_os/pull/1
