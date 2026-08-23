@@ -22,9 +22,11 @@ visually.
 
 ## Using this on an actual game project
 
-This repo is the framework's own home (and its dogfood/smoke-test data) —
-`/gdo-setup <path-to-your-project>` installs it into a separate game
-project instead. Run that from here, then open a new session *in* the
+This repo is the framework's own home — its dogfood/smoke-test data lived
+here during development and was cleaned out once it had done its job (see
+git history if you want the play-by-play). `/gdo-setup
+<path-to-your-project>` installs the framework into a separate game
+project. Run that from here, then open a new session *in* the
 target project and run `/gdo-setup` again (no arguments) to finish
 connecting it: git/GitHub (a real requirement — every stage past
 `/gdo-implement` depends on real `gh pr` calls), engine detection, and
