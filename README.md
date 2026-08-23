@@ -21,13 +21,19 @@ plan for current status.
 
 ## Status
 
-Phase 2 — task board. `/gdo-gdd`, `/gdo-mvp`, `/gdo-epic`, `/gdo-board`, the
-`gdo-design-reviewer` agent, and `.claude/scripts/gdo_board.py` (the
-deterministic reader/writer for `tasks/` state — ready/blocked computation,
-status-transition validation, ID allocation, cycle detection) are
-implemented. Autonomous execution (`/gdo-run` and the implementer/reviewer/
-QA agents) doesn't exist yet — promoting an epic to `ready` today just marks
-it queued for later.
+Phase 5 — post-merge QA. Every stage of the per-ticket pipeline exists and
+has been run for real against a live GitHub repo: `/gdo-implement`
+(implement → PR), `/gdo-review` (review → iterate → merge, tested on both a
+clean approve and a seeded reject → fix → re-review cycle), and
+`/gdo-qa-run` (re-verify on mainline → file bug tickets for anything found
+outside a ticket's own scope → done). Only `/gdo-run` — the orchestrator
+that chains all three automatically across an epic's whole ticket queue
+without a human triggering each stage — doesn't exist yet. Promoting an
+epic to `ready` today queues it for that.
+
+`/gdo-gdd`, `/gdo-mvp`, `/gdo-epic`, `/gdo-board`, the `gdo-design-reviewer`
+agent, and `.claude/scripts/gdo_board.py` (the deterministic reader/writer
+for `tasks/` state) round out the human-in-the-loop and bookkeeping side.
 
 Requires Python 3.8+ on PATH for the board tooling — independent of
 whatever engine/language the game itself uses.
