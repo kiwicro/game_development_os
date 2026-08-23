@@ -15,10 +15,13 @@ production pipeline end-to-end.
   epic is done. It only comes back to you when the epic finishes, a ticket
   fails repeatedly, or a decision needs your judgment.
 
+![The GDO Orchestration Loop](gdo-orchestration-diagram.svg)
+
 See `CLAUDE.md` for the ticket/epic schema, status machine, and conventions
-the skills and agents rely on. See the architecture diagram
-(`gdo-orchestration-diagram.html`) for how the whole loop fits together
-visually.
+the skills and agents rely on. The diagram above is a static export of the
+interactive version (`gdo-orchestration-diagram.html`) — same content,
+open the HTML file for the styled page with a legend and the full
+who-does-what table alongside it.
 
 ## Using this on an actual game project
 

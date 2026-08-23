@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 738" role="img" aria-label="Diagram: /gdo-setup installs and connects the framework to a project (git/GitHub, engine detection, optional MCP guidance), unlocking a design funnel (Concept, GDD with a design-reviewer critique loop, MVP, Epic and Tickets) that passes through a human-approval gate into an autonomous per-ticket loop (Ready, Implement, Review, Merged, QA, Done). Implement is done by gdo-implementer for code tickets or gdo-artist for ART-NNN art tickets, which a code ticket can depend on. Two capped rework loops feed back into Implement, a path from QA spawns a new bug ticket back into Ready, and an escalation path from Review or QA leads to a Blocked state that reports to a human.">
+  <title>The GDO Orchestration Loop</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#101817"/>
+    </marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#a9761c"/>
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b6412f"/>
+    </marker>
+    <marker id="arrowAccent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0d7c74"/>
+    </marker>
+    <marker id="arrowDim" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#47605a"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1200" height="738" fill="#eff4f3"/>
+
+  <!-- ============ ROW 0: setup (once, before everything) ============ -->
+  <rect x="20" y="14" width="260" height="46" rx="8" fill="#e4ece9" stroke="rgba(16,24,23,0.28)" stroke-width="1.5"/>
+  <text x="150" y="34" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="13" font-weight="600" fill="#101817">/gdo-setup</text>
+  <text x="150" y="49" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">install + connect: git/GitHub · engine · MCP guidance</text>
+  <path d="M 150 60 L 150 90 L 95 90 L 95 156" fill="none" stroke="#101817" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="160" y="82" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#47605a">once, per project</text>
+
+  <g transform="translate(0, 78)">
+
+  <!-- ============ ROW A: design funnel ============ -->
+
+  <!-- reviewer critique loop -->
+  <path d="M 295 70 C 280 34, 350 34, 335 70" fill="none" stroke="#a9761c" stroke-width="1.5" marker-end="url(#arrowAmber)"/>
+  <ellipse cx="315" cy="26" rx="98" ry="17" fill="rgba(169,118,28,0.12)" stroke="#a9761c" stroke-width="1.2"/>
+  <text x="315" y="30" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="11" fill="#47605a">gdo-design-reviewer</text>
+  <text x="315" y="10" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">critique · revise · ≤5 rounds</text>
+
+  <!-- concept -->
+  <rect x="20" y="78" width="150" height="42" rx="21" fill="#ffffff" stroke="rgba(16,24,23,0.28)" stroke-width="1.5"/>
+  <text x="95" y="103" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="12" font-weight="600" fill="#101817">Concept / Pitch</text>
+
+  <!-- GDD -->
+  <line x1="170" y1="99" x2="228" y2="99" stroke="#101817" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <rect x="230" y="70" width="160" height="54" rx="8" fill="#ffffff" stroke="rgba(16,24,23,0.28)" stroke-width="1.5"/>
+  <text x="310" y="93" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="13" font-weight="600" fill="#101817">GDD</text>
+  <text x="310" y="110" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">draft ↔ approved</text>
+
+  <!-- MVP -->
+  <line x1="390" y1="97" x2="448" y2="97" stroke="#101817" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="419" y="88" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">approved</text>
+  <rect x="450" y="70" width="150" height="54" rx="8" fill="#ffffff" stroke="rgba(16,24,23,0.28)" stroke-width="1.5"/>
+  <text x="525" y="93" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="13" font-weight="600" fill="#101817">MVP</text>
+  <text x="525" y="110" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">scope cut</text>
+
+  <!-- Epic + Tickets -->
+  <line x1="600" y1="97" x2="658" y2="97" stroke="#101817" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="629" y="88" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">approved</text>
+  <rect x="660" y="70" width="200" height="54" rx="8" fill="#ffffff" stroke="rgba(16,24,23,0.28)" stroke-width="1.5"/>
+  <text x="760" y="93" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="13" font-weight="600" fill="#101817">Epic + Tickets</text>
+  <text x="760" y="110" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">drafted with you</text>
+
+  <!-- gate -->
+  <line x1="760" y1="124" x2="760" y2="158" stroke="#0d7c74" stroke-width="1.5" marker-end="url(#arrowAccent)"/>
+  <rect x="20" y="160" width="1160" height="36" rx="6" fill="rgba(13,124,116,0.12)" stroke="#0d7c74" stroke-width="1.3"/>
+  <text x="600" y="183" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="12.5" font-weight="600" fill="#0d7c74">you promote the epic → ready</text>
+
+  <path d="M 760 196 L 760 216 L 105 216 L 105 258" fill="none" stroke="#0d7c74" stroke-width="1.5" marker-end="url(#arrowAccent)"/>
+
+  <!-- ============ ROW B: execution spine ============ -->
+
+  <!-- Ready -->
+  <rect x="30" y="260" width="150" height="60" rx="8" fill="#ffffff" stroke="rgba(16,24,23,0.28)" stroke-width="1.5"/>
+  <text x="105" y="286" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="13" font-weight="600" fill="#101817">Ready</text>
+  <text x="105" y="302" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">backlog · deps met</text>
+
+  <!-- Implement -->
+  <line x1="180" y1="290" x2="228" y2="290" stroke="#101817" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="205" y="266" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#101817">gdo-implementer</text>
+  <text x="205" y="278" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="9.5" fill="#47605a">or gdo-artist for ART-NNN</text>
+  <rect x="230" y="260" width="150" height="60" rx="8" fill="#ffffff" stroke="rgba(16,24,23,0.28)" stroke-width="1.5"/>
+  <text x="305" y="286" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="13" font-weight="600" fill="#101817">Implement</text>
+  <text x="305" y="302" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">code or art, in-progress</text>
+  <text x="372" y="272" text-anchor="end" font-family="ui-monospace, Consolas, monospace" font-size="9" fill="#47605a">[worktree]</text>
+
+  <!-- Review -->
+  <line x1="380" y1="290" x2="428" y2="290" stroke="#101817" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="404" y="278" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">PR opened</text>
+  <rect x="430" y="260" width="150" height="60" rx="8" fill="#ffffff" stroke="rgba(16,24,23,0.28)" stroke-width="1.5"/>
+  <text x="505" y="286" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="13" font-weight="600" fill="#101817">In Review</text>
+  <text x="505" y="302" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">PR open</text>
+  <text x="572" y="272" text-anchor="end" font-family="ui-monospace, Consolas, monospace" font-size="9" fill="#47605a">[worktree]</text>
+
+  <!-- Merged -->
+  <line x1="580" y1="290" x2="628" y2="290" stroke="#101817" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="605" y="272" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="10.5" fill="#101817">gdo-reviewer</text>
+  <text x="605" y="284" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">APPROVE</text>
+  <rect x="630" y="260" width="150" height="60" rx="8" fill="#ffffff" stroke="rgba(16,24,23,0.28)" stroke-width="1.5"/>
+  <text x="705" y="286" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="13" font-weight="600" fill="#101817">Merged</text>
+  <text x="705" y="302" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">squash + delete branch</text>
+
+  <!-- QA -->
+  <line x1="780" y1="290" x2="828" y2="290" stroke="#101817" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="805" y="272" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="10.5" fill="#101817">gdo-qa</text>
+  <text x="805" y="284" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">re-verify + explore</text>
+  <rect x="830" y="260" width="150" height="60" rx="8" fill="#ffffff" stroke="rgba(16,24,23,0.28)" stroke-width="1.5"/>
+  <text x="905" y="286" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="13" font-weight="600" fill="#101817">QA</text>
+  <text x="905" y="302" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">on mainline</text>
+  <text x="972" y="272" text-anchor="end" font-family="ui-monospace, Consolas, monospace" font-size="9" fill="#47605a">[worktree]</text>
+
+  <!-- Done -->
+  <line x1="980" y1="290" x2="1028" y2="290" stroke="#101817" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="1004" y="278" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">clean</text>
+  <rect x="1030" y="260" width="150" height="60" rx="8" fill="rgba(44,122,75,0.12)" stroke="#2c7a4b" stroke-width="1.5"/>
+  <text x="1105" y="286" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="13" font-weight="600" fill="#2c7a4b">Done</text>
+  <text x="1105" y="302" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">terminal</text>
+
+  <!-- ============ rework loops (below spine) ============ -->
+
+  <!-- lane 1: review reject -->
+  <path d="M 505 320 L 505 340 L 305 340 L 305 320" fill="none" stroke="#a9761c" stroke-width="1.5" marker-end="url(#arrowAmber)"/>
+  <text x="405" y="333" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#a9761c">REQUEST_CHANGES · attempts++ (≤3)</text>
+
+  <!-- lane 2: qa regression -->
+  <path d="M 905 320 L 905 402 L 330 402 L 330 320" fill="none" stroke="#a9761c" stroke-width="1.5" marker-end="url(#arrowAmber)"/>
+  <text x="617" y="395" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#a9761c">regression · attempts++ · same ≤3 cap</text>
+
+  <!-- lane 3: bug spawns new ticket -->
+  <path d="M 855 320 L 855 460 L 105 460 L 105 320" fill="none" stroke="#0d7c74" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrowAccent)"/>
+  <text x="480" y="453" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#0d7c74">bug found, out of ticket's scope → new BUG-NNN re-enters Ready</text>
+
+  <!-- ============ escalation ============ -->
+
+  <line x1="540" y1="313" x2="672" y2="500" stroke="#b6412f" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#arrowRed)"/>
+  <text x="565" y="420" transform="rotate(58 565 420)" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#b6412f">3rd rejection</text>
+
+  <line x1="880" y1="313" x2="770" y2="500" stroke="#b6412f" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#arrowRed)"/>
+  <text x="850" y="420" transform="rotate(-58 850 420)" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10" fill="#b6412f">3rd regression</text>
+
+  <rect x="600" y="505" width="160" height="50" rx="8" fill="rgba(182,65,47,0.10)" stroke="#b6412f" stroke-width="1.5"/>
+  <text x="680" y="527" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="13" font-weight="600" fill="#b6412f">Blocked</text>
+  <text x="680" y="543" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">attempts cap hit</text>
+
+  <line x1="680" y1="555" x2="680" y2="586" stroke="#101817" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <rect x="600" y="588" width="160" height="50" rx="8" fill="#ffffff" stroke="rgba(16,24,23,0.28)" stroke-width="1.5"/>
+  <text x="680" y="610" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="13" font-weight="600" fill="#101817">Human</text>
+  <text x="680" y="626" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">flagged in the report</text>
+  <text x="770" y="614" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="#47605a">↺ resumes once un-blocked</text>
+
+  <!-- ============ art pipeline: a code ticket can depend on an ART ticket ============ -->
+  <ellipse cx="52" cy="400" rx="46" ry="15" fill="#e4ece9" stroke="rgba(16,24,23,0.28)" stroke-width="1.2"/>
+  <text x="52" y="404" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" fill="#47605a">ART-NNN</text>
+  <path d="M 52 385 L 52 320" fill="none" stroke="#47605a" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#arrowDim)"/>
+  <text x="60" y="358" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="9.5" fill="#47605a">depends_on</text>
+  </g>
+</svg>
