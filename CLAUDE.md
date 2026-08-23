@@ -73,16 +73,24 @@ of execution.
 ## Status machine (tickets/bugs)
 
 ```
-backlog → ready → in-progress → in-review ─┬─→ merged → qa → done
-                        ^                   │
-                        └── changes-requested (attempts++, cap 3)
+backlog → ready → in-progress → in-review ─┬─→ merged → qa ─┬─→ done
+                        ^                   │                │
+                        │                   └── changes-requested (attempts++, cap 3)
+                        └───────────────────────────────────┘
+                          (qa found the merged change itself doesn't meet
+                           acceptance criteria — reopens for another pass;
+                           an unrelated bug QA finds becomes a new BUG-NNN
+                           instead of reopening this ticket)
 ```
 
-`blocked` is a side state, entered from any status, for two reasons only:
+`blocked` is a side state, enterable from any status, for two reasons only:
 (1) `depends_on` includes a ticket that isn't `done`, or (2) `attempts`
 exhausted its cap without approval. A `blocked`-on-exhausted-attempts ticket
 is what triggers the orchestrator's escalation to the user — it does not
-retry silently past the cap.
+retry silently past the cap. `blocked` exits to `backlog` (re-triage) or
+`in-progress` (a human resolved the block and work resumes directly).
+
+This machine is enforced in code, not just here — see the next section.
 
 Epics move `draft → ready` only when the user explicitly approves them
 (`/gdo-epic` does this on request, never automatically). `ready` is the
@@ -109,6 +117,31 @@ one pass through the `gdo-design-reviewer` agent (spawned automatically by
 that decision, it never sets status by itself. Editing an already-approved
 `docs/gdd.md` resets it to `draft` and re-requires the gate.
 
+## The board helper — .claude/scripts/gdo_board.py
+
+Stdlib-only Python, no dependencies to install. This is the authoritative
+reader/writer for `tasks/` state — skills and agents should shell out to it
+rather than hand-parsing or hand-editing frontmatter, so "what's ready,"
+"what's blocked and why," and "is this status transition even legal" are
+answered the same way everywhere instead of by each agent's own reading of
+the schema.
+
+```
+python .claude/scripts/gdo_board.py board [--epic EPIC-NNN] [--json]
+python .claude/scripts/gdo_board.py ready --epic EPIC-NNN [--json]
+python .claude/scripts/gdo_board.py next-id EPIC|TICKET|BUG
+python .claude/scripts/gdo_board.py set-status <ID> <new-status>
+    [--pr-url URL] [--attempts N] [--owner NAME] [--force]
+python .claude/scripts/gdo_board.py cycles
+python .claude/scripts/gdo_board.py validate
+```
+
+`set-status` validates the transition against the state machine above and
+refuses illegal ones unless `--force` is passed. It only ever rewrites the
+specific frontmatter fields it's told to change — body text and every other
+field are left byte-identical. Run `validate` after any batch of manual
+`tasks/` edits (e.g. right after `/gdo-epic` writes a new epic's tickets).
+
 ## Branch and PR conventions
 
 - Branch: `ticket/TICKET-NNN-<slug>` (matches the ticket filename slug).
@@ -121,6 +154,10 @@ that decision, it never sets status by itself. Editing an already-approved
 
 ## Ground rules for agents operating in this repo
 
+- Use `.claude/scripts/gdo_board.py` to read computed state (ready/blocked/
+  cycles) and to change `status`/`pr_url`/`attempts`/`owner_agent`. Direct
+  edits to those fields via `Edit`/`Write` are how the script's own
+  validation gets bypassed by accident.
 - Never flip a ticket or epic to `ready` yourself — that's a human decision.
 - Never hand-wave acceptance criteria as met; the reviewer and QA agent
   check the actual running behavior, not just that code was written.

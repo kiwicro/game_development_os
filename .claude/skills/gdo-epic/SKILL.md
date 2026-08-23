@@ -2,7 +2,7 @@
 name: gdo-epic
 description: Break an approved MVP (or a specific area of it) into epics and tickets under tasks/, iterating with the user, then promote an epic to ready when they explicitly approve it for autonomous execution. Refuses to run until docs/mvp.md is approved.
 user-invocable: true
-allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Grep, AskUserQuestion, Bash(python .claude/scripts/gdo_board.py:*)
 ---
 
 # /gdo-epic — Epic & Ticket Breakdown
@@ -24,11 +24,17 @@ and refuse: tell the user to finish `/gdo-mvp` first.
 
 IDs are monotonically increasing per prefix (`EPIC-`, `TICKET-`, `BUG-`)
 across the whole `tasks/` tree — never reused, even if a file is later
-deleted. To find the next ID for a prefix: `Glob` `tasks/epics/EPIC-*.md`
-(or `tasks/tickets/TICKET-*.md`, or `tasks/tickets/*.md` + `tasks/bugs/*.md`
-together for `BUG-`... no: `BUG-` only lives in `tasks/bugs/`), parse the
-numeric part out of each filename, take the max, add 1, zero-pad to 3
-digits. If none exist yet, start at 001.
+deleted. Don't compute this by eye; shell out to the board helper, which is
+the authoritative source for it:
+
+```
+python .claude/scripts/gdo_board.py next-id EPIC
+python .claude/scripts/gdo_board.py next-id TICKET
+```
+
+Call it once per file you're about to create, right before writing that
+file (not all up front) — if you're writing several tickets in one pass,
+each `next-id` call reflects the files written so far.
 
 ## Breaking down scope
 
@@ -62,6 +68,13 @@ once its epic is `ready` *and* its own `depends_on` are satisfied, per
 Write the epic file first (so you know its ID for the tickets' `epic:`
 field), then each ticket file. Update the epic's `## Tickets` list with the
 final ticket IDs once all are written.
+
+## After writing
+
+Run `python .claude/scripts/gdo_board.py validate` once you've written the
+epic and its tickets. It catches mistakes like a `depends_on` typo pointing
+at a nonexistent ticket, or an accidental dependency cycle, before they sit
+undetected in the repo. Fix anything it flags before moving on.
 
 ## Promoting an epic to ready
 

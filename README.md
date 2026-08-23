@@ -21,7 +21,13 @@ plan for current status.
 
 ## Status
 
-Phase 1 — human-in-the-loop design skills. `/gdo-gdd`, `/gdo-mvp`,
-`/gdo-epic`, and the `gdo-design-reviewer` agent are implemented. Autonomous
-execution (`/gdo-run` and the implementer/reviewer/QA agents) doesn't exist
-yet — promoting an epic to `ready` today just marks it queued for later.
+Phase 2 — task board. `/gdo-gdd`, `/gdo-mvp`, `/gdo-epic`, `/gdo-board`, the
+`gdo-design-reviewer` agent, and `.claude/scripts/gdo_board.py` (the
+deterministic reader/writer for `tasks/` state — ready/blocked computation,
+status-transition validation, ID allocation, cycle detection) are
+implemented. Autonomous execution (`/gdo-run` and the implementer/reviewer/
+QA agents) doesn't exist yet — promoting an epic to `ready` today just marks
+it queued for later.
+
+Requires Python 3.8+ on PATH for the board tooling — independent of
+whatever engine/language the game itself uses.
