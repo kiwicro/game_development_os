@@ -21,19 +21,28 @@ plan for current status.
 
 ## Status
 
-Phase 5 — post-merge QA. Every stage of the per-ticket pipeline exists and
-has been run for real against a live GitHub repo: `/gdo-implement`
-(implement → PR), `/gdo-review` (review → iterate → merge, tested on both a
-clean approve and a seeded reject → fix → re-review cycle), and
-`/gdo-qa-run` (re-verify on mainline → file bug tickets for anything found
-outside a ticket's own scope → done). Only `/gdo-run` — the orchestrator
-that chains all three automatically across an epic's whole ticket queue
-without a human triggering each stage — doesn't exist yet. Promoting an
-epic to `ready` today queues it for that.
+Phase 6 — full autonomy. `/gdo-run` chains implement → review/iterate →
+merge → QA automatically across an epic's entire ticket queue via
+`gdo-orchestrator`, resuming each ticket at whatever stage it's actually
+at. Verified for real: spawned as a single background agent against
+EPIC-001 with a mix of stalled and fresh work (two tickets sitting merged
+but un-QA'd, one bug ticket needing the full cycle from scratch), it ran
+completely unattended — no manual steps between invocation and the epic
+reaching `done` — including recovering from its own operational hiccup
+(stale worktree references blocking a branch delete) without escalating.
+Independently re-verified afterward: git history, GitHub PR state, and the
+actual shipped fix all matched its report exactly.
 
-`/gdo-gdd`, `/gdo-mvp`, `/gdo-epic`, `/gdo-board`, the `gdo-design-reviewer`
-agent, and `.claude/scripts/gdo_board.py` (the deterministic reader/writer
-for `tasks/` state) round out the human-in-the-loop and bookkeeping side.
+The single-ticket triggers (`/gdo-implement`, `/gdo-review`,
+`/gdo-qa-run`) still exist and work standalone — useful for handling one
+ticket by hand without invoking full epic autonomy. `/gdo-gdd`,
+`/gdo-mvp`, `/gdo-epic`, `/gdo-board`, the `gdo-design-reviewer` agent, and
+`.claude/scripts/gdo_board.py` round out the human-in-the-loop and
+bookkeeping side.
+
+Remaining framework work is polish, not new capability: an observability
+pass (a clearer status view / dashboard) and hardening from one more full
+run.
 
 Requires Python 3.8+ on PATH for the board tooling — independent of
 whatever engine/language the game itself uses.
