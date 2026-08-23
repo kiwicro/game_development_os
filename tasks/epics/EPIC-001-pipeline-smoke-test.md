@@ -17,16 +17,19 @@ concept — this epic deliberately doesn't touch `docs/gdd.md` or
 
 ## Scope
 
-A single tiny script whose only job is to prove a ticket can go from
-`backlog` to a real, verifiable, merged change through this pipeline.
-Nothing else — no game logic belongs here.
+Tiny scripts whose only job is to prove a ticket can go from `backlog` to a
+real, verifiable, merged change through this pipeline. Nothing else — no
+game logic belongs here.
 
 ## Tickets
 
 - TICKET-001 — Add pipeline smoke-test script
+- TICKET-002 — Add pipeline version-check script (seeded wrong on purpose
+  once, to prove the reviewer's reject → fix → re-review loop actually
+  works, not just the happy path)
 
 ## Done when
 
-TICKET-001 is `done`. This epic can gain more tickets later if a phase
-needs a new kind of fixture to test against (e.g. Phase 4 wants a
-deliberately-broken ticket to prove the review-reject path).
+TICKET-001 and TICKET-002 are `done`. This epic can gain more tickets later
+if a phase needs a new kind of fixture to test against (e.g. Phase 5 wants
+one QA can find a real bug in).
