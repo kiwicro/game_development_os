@@ -2,7 +2,7 @@
 name: gdo-implement
 description: Manually run the gdo-implementer agent against a single ticket - implement, commit, push, open a real GitHub PR. Use when the user wants to implement one specific ticket right now, outside of full epic autonomy (which /gdo-run will provide once it exists).
 user-invocable: true
-allowed-tools: Read, Glob, Bash(python .claude/scripts/gdo_board.py:*), Agent, AskUserQuestion
+allowed-tools: Read, Glob, Bash(python .claude/scripts/gdo_board.py:*), Bash(git commit:*), Bash(git add:*), Agent, AskUserQuestion
 ---
 
 # /gdo-implement — Single-Ticket Implementation
@@ -34,7 +34,11 @@ and for handling one ticket ad hoc without spinning up full autonomy.
    currently `backlog`), then
    `python .claude/scripts/gdo_board.py set-status <ID> in-progress`
    (add `--force` only if step 3's confirmation covered an out-of-sequence
-   case).
+   case). **Then commit that change** (`git add tasks/ && git commit -m
+   "<ID>: mark in-progress"`) before the next step — `Agent` calls with
+   `isolation: "worktree"` fork from committed git state, not uncommitted
+   working-tree changes, so a spawned agent that reads ticket status would
+   otherwise see stale data (see `CLAUDE.md`).
 5. Spawn the `gdo-implementer` agent (`Agent` tool, `isolation: "worktree"`)
    with a self-contained prompt: the repo is the current working directory,
    the ticket ID is `<ID>`, and — **important** — instruct it to read and
@@ -43,9 +47,10 @@ and for handling one ticket ad hoc without spinning up full autonomy.
    type (this keeps the skill correct even in a session where the custom
    agent type hasn't been (re)loaded yet).
 6. On a report with a PR URL: run
-   `python .claude/scripts/gdo_board.py set-status <ID> in-review --pr-url <URL>`.
-   Tell the user the PR URL and a short summary of what was implemented and
-   verified.
+   `python .claude/scripts/gdo_board.py set-status <ID> in-review --pr-url <URL>`,
+   then commit that change too. Tell the user the PR URL and a short
+   summary of what was implemented and verified. Leave the PR open — this
+   skill never merges (no reviewer exists yet to have approved it).
 7. On an escalation (agent reported it couldn't proceed) or any failure:
    do **not** advance the status past `in-progress`. Report exactly what
    the agent said blocked it, and ask the user how to proceed — don't retry

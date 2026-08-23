@@ -142,6 +142,17 @@ specific frontmatter fields it's told to change — body text and every other
 field are left byte-identical. Run `validate` after any batch of manual
 `tasks/` edits (e.g. right after `/gdo-epic` writes a new epic's tickets).
 
+**Commit status transitions before spawning a worktree-isolated agent.**
+`Agent` calls with `isolation: "worktree"` fork from the repo's committed
+git state, not from uncommitted changes sitting in the main working tree —
+confirmed the hard way in Phase 3: a `set-status ... in-progress` call left
+uncommitted locally, then a worktree agent spawned right after, saw the
+ticket as still `backlog`. It didn't matter for the implementer (it doesn't
+read status), but anything that *does* depend on the ticket's status being
+current inside a spawned worktree needs that status change committed (a
+plain local commit is enough — it doesn't need to be pushed) before the
+`Agent` call, not just written to disk.
+
 ## Branch and PR conventions
 
 - Branch: `ticket/TICKET-NNN-<slug>` (matches the ticket filename slug).
