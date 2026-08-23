@@ -1,7 +1,7 @@
 ---
 id: EPIC-001
 title: Pipeline Smoke Test
-status: in-progress
+status: done
 created: 2026-08-23
 ---
 
