@@ -13,8 +13,8 @@ agents in `.claude/` rely on — read it before touching `tasks/`.
 
 ```
 .claude/
-  skills/       # slash commands: /gdo:gdd, /gdo:mvp, /gdo:epic, /gdo:board, /gdo:run
-  agents/       # custom subagent types: orchestrator, implementer, reviewer, qa
+  skills/       # /gdo-gdd, /gdo-mvp, /gdo-epic, /gdo-board, /gdo-run
+  agents/       # custom subagent types: design-reviewer, orchestrator, implementer, reviewer, qa
 docs/
   gdd.md        # Game Design Document
   mvp.md        # MVP scope cut
@@ -85,10 +85,29 @@ is what triggers the orchestrator's escalation to the user — it does not
 retry silently past the cap.
 
 Epics move `draft → ready` only when the user explicitly approves them
-(`/gdo:epic` does this on request, never automatically). `ready` is the
-signal `/gdo:run` treats as "safe to execute autonomously." Nothing in
+(`/gdo-epic` does this on request, never automatically). `ready` is the
+signal `/gdo-run` treats as "safe to execute autonomously." Nothing in
 `tasks/` should be hand-edited into `ready` without that conversation
 having happened.
+
+## Design doc gate (docs/gdd.md, docs/mvp.md)
+
+`docs/gdd.md` frontmatter: `status: draft | in-review | approved`,
+`version` (int, bumped on substantive revision), `last_reviewed` (date or
+`null`). It also carries a `## Review Log` section — one entry per design
+review round, each recording the round number, date, verdict, condensed
+findings, and resolution.
+
+`docs/mvp.md` frontmatter: `status: draft | approved`, `gdd_version` (a
+snapshot of the GDD version it was scoped against).
+
+The pipeline gates hard, front to back: `/gdo-mvp` refuses to run unless
+`docs/gdd.md` is `approved`; `/gdo-epic` refuses to run unless
+`docs/mvp.md` is `approved`. A GDD reaches `approved` only after at least
+one pass through the `gdo-design-reviewer` agent (spawned automatically by
+`/gdo-gdd`) and an explicit user decision — the reviewer's verdict informs
+that decision, it never sets status by itself. Editing an already-approved
+`docs/gdd.md` resets it to `draft` and re-requires the gate.
 
 ## Branch and PR conventions
 
