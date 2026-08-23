@@ -2,7 +2,7 @@
 id: TICKET-003
 epic: EPIC-001
 title: Add pipeline info script with --format flag
-status: merged
+status: done
 depends_on: []
 attempts: 0
 pr_url: https://github.com/kiwicro/game_development_os/pull/3
