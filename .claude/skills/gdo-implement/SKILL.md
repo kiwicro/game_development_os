@@ -9,16 +9,19 @@ allowed-tools: Read, Glob, Bash(python .claude/scripts/gdo_board.py:*), Bash(git
 
 Arguments passed: `$ARGUMENTS` — a ticket ID, e.g. `TICKET-004`.
 
-This is the manual, one-ticket-at-a-time trigger for the same
-`gdo-implementer` agent the full orchestrator (`/gdo-run`, not built yet)
-will use per-ticket inside its epic loop. Useful for testing the pipeline
-and for handling one ticket ad hoc without spinning up full autonomy.
+This is the manual, one-ticket-at-a-time trigger for the same implementer
+agent `gdo-orchestrator` uses per-item inside its epic loop. Useful for
+testing the pipeline and for handling one item ad hoc without spinning up
+full autonomy.
 
 ## Steps
 
 1. If `$ARGUMENTS` is empty, ask which ticket.
-2. Locate the ticket file (`tasks/tickets/<ID>-*.md` or
-   `tasks/bugs/<ID>-*.md` via Glob). If not found, say so and stop.
+2. Locate the item file — `tasks/tickets/<ID>-*.md`, `tasks/bugs/<ID>-*.md`,
+   or `tasks/art/<ID>-*.md` via Glob (an `ART-` ID lives in the last one).
+   If not found, say so and stop. **Which directory it's in decides which
+   agent you spawn in step 5** — `gdo-artist` for `tasks/art/`,
+   `gdo-implementer` for the other two. Same steps either way otherwise.
 3. Read it. Check `status`:
    - `backlog` or `ready` → normal case, continue.
    - `done`, `merged`, `qa`, `in-review`, `in-progress` → this ticket is
@@ -39,23 +42,24 @@ and for handling one ticket ad hoc without spinning up full autonomy.
    `isolation: "worktree"` fork from committed git state, not uncommitted
    working-tree changes, so a spawned agent that reads ticket status would
    otherwise see stale data (see `CLAUDE.md`).
-5. Spawn the `gdo-implementer` agent (`Agent` tool, `isolation: "worktree"`)
-   with a self-contained prompt: the repo is the current working directory,
-   the ticket ID is `<ID>`, and — **important** — instruct it to read and
-   follow `.claude/agents/gdo-implementer.md` in the repo for its full
-   operating instructions if it isn't already running as that named agent
-   type (this keeps the skill correct even in a session where the custom
-   agent type hasn't been (re)loaded yet).
+5. Spawn the agent decided in step 2 (`Agent` tool,
+   `isolation: "worktree"`) with a self-contained prompt: the repo is the
+   current working directory, the item ID is `<ID>`, and — **important** —
+   instruct it to read and follow `.claude/agents/gdo-implementer.md` or
+   `.claude/agents/gdo-artist.md` (matching which one you're spawning) in
+   the repo for its full operating instructions if it isn't already running
+   as that named agent type (this keeps the skill correct even in a session
+   where the custom agent type hasn't been (re)loaded yet).
 6. On a report with a PR URL: run
    `python .claude/scripts/gdo_board.py set-status <ID> in-review --pr-url <URL>`,
    then commit that change too. Tell the user the PR URL and a short
    summary of what was implemented and verified. Leave the PR open — this
-   skill never merges (no reviewer exists yet to have approved it).
+   skill never merges on its own; `/gdo-review` handles that.
 7. On an escalation (agent reported it couldn't proceed) or any failure:
    do **not** advance the status past `in-progress`. Report exactly what
    the agent said blocked it, and ask the user how to proceed — don't retry
-   automatically. (Automatic retry-with-feedback is Phase 4's job, once the
-   reviewer exists to generate that feedback.)
+   automatically. Automatic retry-with-feedback is `/gdo-review`'s job, once
+   a review pass has actually generated that feedback.
 
 ## Ground rules
 

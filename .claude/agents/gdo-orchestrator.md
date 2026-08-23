@@ -38,13 +38,16 @@ Given an epic ID:
    stop and report why.
 2. If this is the first real work you're about to do and the epic is still
    `ready`, promote it: `set-status <EPIC-ID> in-progress`, commit.
-3. Find every ticket/bug under this epic **not** `status: done` and not
-   `status: blocked`. If there are none, go to *Finishing up*.
+3. Find every ticket/bug/art item under this epic **not** `status: done`
+   and not `status: blocked` — that means all three of `tasks/tickets/`,
+   `tasks/bugs/`, and `tasks/art/`, not just tickets. If there are none, go
+   to *Finishing up*.
 4. Pick one (lowest ID first is fine — no need to be clever about
    ordering) and resume it at the stage its `status` implies. This mirrors
    `/gdo-implement`, `/gdo-review`, and `/gdo-qa-run` exactly — follow
-   those files' actual steps for the stage-specific detail; what's below is
-   just the dispatch:
+   those files' actual steps for the stage-specific detail, including their
+   own dispatch between `gdo-implementer` and `gdo-artist` depending on
+   which directory the item is in; what's below is just the state dispatch:
 
    - **`backlog`/`ready`** — check readiness first:
      `python .claude/scripts/gdo_board.py ready --epic <EPIC-ID> --json`.

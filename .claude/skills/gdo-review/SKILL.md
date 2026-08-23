@@ -10,15 +10,17 @@ allowed-tools: Read, Glob, Bash(python .claude/scripts/gdo_board.py:*), Bash(git
 Arguments passed: `$ARGUMENTS` — a ticket ID, e.g. `TICKET-002`.
 
 This is the manual trigger for the same review/iterate cycle the full
-orchestrator (`/gdo-run`, Phase 6) will run automatically per ticket. It
-pairs with `/gdo-implement`, which gets a ticket to `in-review` — this
-skill takes it from there to `merged` or an escalation.
+orchestrator (`gdo-orchestrator`, via `/gdo-run`) runs automatically per
+item. It pairs with `/gdo-implement`, which gets an item to `in-review` —
+this skill takes it from there to `merged` or an escalation.
 
 ## Preconditions
 
-Locate the ticket (`tasks/tickets/<ID>-*.md` or `tasks/bugs/<ID>-*.md`).
-Require `status: in-review` and a non-null `pr_url`. If not met, say why
-and stop — e.g. `backlog`/`ready` means `/gdo-implement` hasn't run yet.
+Locate the item (`tasks/tickets/<ID>-*.md`, `tasks/bugs/<ID>-*.md`, or
+`tasks/art/<ID>-*.md`). Require `status: in-review` and a non-null
+`pr_url`. If not met, say why and stop — e.g. `backlog`/`ready` means
+`/gdo-implement` hasn't run yet. Note which directory it's in — that
+decides which agent gets re-spawned in step 3 below if it's rejected.
 
 ## The loop
 
@@ -39,9 +41,8 @@ verdicts before giving up — a 4th attempt is never spawned automatically):
    - `python .claude/scripts/gdo_board.py set-status <ID> merged`, then
      `git add tasks/ && git commit -m "<ID>: merged"`, then `git push`.
    - Report the merge to the user, including the reviewer's acceptance-
-     criteria verification. Mention that QA (Phase 5, not built yet) is the
-     next stage once it exists — for now `merged` is as far as this skill
-     takes it.
+     criteria verification. Mention that `/gdo-qa-run` is the next stage —
+     `merged` is as far as this skill itself takes it.
 
 3. **REQUEST_CHANGES →** read the ticket's current `attempts` value, then:
    - `python .claude/scripts/gdo_board.py set-status <ID> changes-requested
@@ -52,7 +53,8 @@ verdicts before giving up — a 4th attempt is never spawned automatically):
      to proceed (more manual guidance, override and merge anyway, or drop
      the ticket). Do not spawn a 4th implementer attempt on your own.
    - **Otherwise**: `set-status <ID> in-progress`, commit, then spawn
-     `gdo-implementer` (`Agent`, `isolation: "worktree"`) on the **same
+     `gdo-implementer` (or `gdo-artist`, if this item lives in
+     `tasks/art/`) (`Agent`, `isolation: "worktree"`) on the **same
      branch** — tell it explicitly to check out the existing
      `ticket/<ID>-<slug>` branch from `origin`, not create a new one — and
      include the reviewer's findings verbatim as the feedback to address.

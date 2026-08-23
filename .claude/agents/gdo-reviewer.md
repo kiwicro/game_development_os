@@ -44,6 +44,17 @@ with what's wrong.
   PR. Any of those is a finding regardless of whether the code itself is
   fine.
 
+Reviewing an **ART-NNN** ticket (from `gdo-artist` instead of
+`gdo-implementer`): the lens is the same, just applied to an asset instead
+of code. Confirm the file exists at the stated path with the right
+dimensions — for a PNG, read the `IHDR` chunk directly (width/height are
+the first two 4-byte big-endian integers at byte offset 16) rather than
+assuming from the ticket's claim. If the ticket didn't call for real,
+sourced art specifically, confirm this is placeholder art honestly labeled
+as such (`.placeholder.` in the filename, PR description says so plainly) —
+a placeholder that reads as finished art is a finding, same severity as a
+code claim that doesn't hold up.
+
 Do not request changes over stylistic preference alone, or over anything
 not actually required by the acceptance criteria — that's scope creep in
 the other direction. Reserve `REQUEST_CHANGES` for things that are actually

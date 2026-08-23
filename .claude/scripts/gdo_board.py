@@ -3,22 +3,22 @@
 Game Development OS — task board helper.
 
 Deterministic reader/writer for the frontmatter in tasks/epics/*.md,
-tasks/tickets/*.md, tasks/bugs/*.md. Skills and agents should shell out to
-this instead of hand-parsing YAML — it's the single place that knows the
-schema and the status machine defined in CLAUDE.md.
+tasks/tickets/*.md, tasks/bugs/*.md, tasks/art/*.md. Skills and agents
+should shell out to this instead of hand-parsing YAML — it's the single
+place that knows the schema and the status machine defined in CLAUDE.md.
 
 No third-party dependencies (stdlib only), so it runs anywhere Python 3.8+
 is available, independent of whatever engine/language the game itself uses.
 
 Commands:
   board [--epic EPIC-ID] [--json]     Render current status.
-  ready --epic EPIC-ID [--json]       List ticket/bug IDs eligible to start now.
-  next-id <EPIC|TICKET|BUG>           Print the next free ID for that prefix.
-  set-status <ID> <new-status>        Update a ticket/bug/epic's status, validating
+  ready --epic EPIC-ID [--json]       List ticket/bug/art IDs eligible to start now.
+  next-id <EPIC|TICKET|BUG|ART>       Print the next free ID for that prefix.
+  set-status <ID> <new-status>        Update a ticket/bug/art/epic's status, validating
                                        the transition against the state machine.
                                        [--pr-url URL] [--attempts N] [--owner NAME]
                                        [--force]  (bypass transition validation)
-  cycles                              Report dependency cycles among tickets/bugs.
+  cycles                              Report dependency cycles among tickets/bugs/art.
   validate                            Sanity-check the whole tasks/ tree.
 """
 
@@ -39,8 +39,16 @@ TASKS = REPO_ROOT / "tasks"
 EPICS_DIR = TASKS / "epics"
 TICKETS_DIR = TASKS / "tickets"
 BUGS_DIR = TASKS / "bugs"
+ART_DIR = TASKS / "art"
 
-ID_RE = re.compile(r"^(EPIC|TICKET|BUG)-(\d+)-")
+# Item directories, keyed by ID prefix. TICKET, BUG, and ART all share the
+# same status machine and frontmatter shape (ART is functionally "a ticket
+# whose implement stage is art sourcing, not code" — see CLAUDE.md) — kept
+# as separate directories/prefixes purely so a human scanning tasks/ sees
+# code work, bugs, and art work as distinct piles.
+ITEM_DIRS = {"TICKET": TICKETS_DIR, "BUG": BUGS_DIR, "ART": ART_DIR}
+
+ID_RE = re.compile(r"^(EPIC|TICKET|BUG|ART)-(\d+)-")
 
 # Ticket/bug status machine. Every status may also move to "blocked"
 # (side-state, entered from anywhere) — that's handled separately, not
@@ -186,8 +194,8 @@ def load_all():
         if fm and fm.get("id"):
             epics[fm["id"]] = fm
 
-    items = {}  # tickets + bugs, keyed by id
-    for directory in (TICKETS_DIR, BUGS_DIR):
+    items = {}  # tickets + bugs + art, keyed by id
+    for directory in ITEM_DIRS.values():
         for p in sorted(directory.glob("*.md")):
             if p.name.startswith("_"):
                 continue
@@ -233,9 +241,9 @@ def blocked_reason(item, epics, items):
 
 def cmd_next_id(args):
     prefix = args.prefix.upper()
-    directory = {"EPIC": EPICS_DIR, "TICKET": TICKETS_DIR, "BUG": BUGS_DIR}.get(prefix)
+    directory = {"EPIC": EPICS_DIR, **ITEM_DIRS}.get(prefix)
     if directory is None:
-        print(f"error: prefix must be EPIC, TICKET, or BUG (got {args.prefix})", file=sys.stderr)
+        print(f"error: prefix must be EPIC, TICKET, BUG, or ART (got {args.prefix})", file=sys.stderr)
         return 1
     max_n = 0
     for p in directory.glob(f"{prefix}-*.md"):
@@ -340,8 +348,9 @@ def cmd_validate(args):
     epics, items = load_all()
     errors = []
 
+    dir_to_prefix = {d: p for p, d in ITEM_DIRS.items()}
     for iid, item in items.items():
-        expected_prefix = "BUG" if item["_path"].parent == BUGS_DIR else "TICKET"
+        expected_prefix = dir_to_prefix.get(item["_path"].parent, "TICKET")
         if not iid.startswith(expected_prefix + "-"):
             errors.append(f"{item['_path'].name}: id {iid} doesn't match its directory ({expected_prefix})")
         stem_id = item["_path"].name.split("-", 2)

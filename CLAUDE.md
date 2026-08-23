@@ -13,24 +13,42 @@ agents in `.claude/` rely on — read it before touching `tasks/`.
 
 ```
 .claude/
-  skills/       # /gdo-gdd, /gdo-mvp, /gdo-epic, /gdo-board, /gdo-run
-  agents/       # custom subagent types: design-reviewer, orchestrator, implementer, reviewer, qa
+  skills/       # /gdo-setup, /gdo-gdd, /gdo-mvp, /gdo-epic, /gdo-board,
+                # /gdo-implement, /gdo-review, /gdo-qa-run, /gdo-run
+  agents/       # custom subagent types: design-reviewer, orchestrator,
+                # implementer, reviewer, qa, artist
+  scripts/      # gdo_board.py, gdo_placeholder_art.py
 docs/
   gdd.md        # Game Design Document
   mvp.md        # MVP scope cut
+  engine.md     # detected engine + any connected MCP, written by /gdo-setup
 tasks/
   epics/        # EPIC-NNN-<slug>.md
   tickets/      # TICKET-NNN-<slug>.md
-  bugs/         # BUG-NNN-<slug>.md  (tickets filed by QA, same schema as tickets)
+  bugs/         # BUG-NNN-<slug>.md  (filed by QA, same schema as tickets)
+  art/          # ART-NNN-<slug>.md  (art work, same schema as tickets)
 ```
+
+Setting this framework up on an actual game project (as opposed to working
+inside this repo, which is the framework's own home) is `/gdo-setup`'s job
+— see that skill for installing the framework into a target project and
+connecting it (git/GitHub, engine detection, optional engine-MCP guidance).
 
 ## IDs and filenames
 
-`EPIC-NNN`, `TICKET-NNN`, `BUG-NNN` — zero-padded 3-digit, monotonically
-increasing per prefix across the whole `tasks/` tree (don't reuse numbers,
-even across subfolders). Filename is `<ID>-<kebab-slug>.md`, e.g.
-`TICKET-014-inventory-drag-drop.md`. The ID inside the frontmatter is the
-source of truth if filename and frontmatter ever disagree.
+`EPIC-NNN`, `TICKET-NNN`, `BUG-NNN`, `ART-NNN` — zero-padded 3-digit,
+monotonically increasing per prefix across the whole `tasks/` tree (don't
+reuse numbers, even across subfolders). Filename is `<ID>-<kebab-slug>.md`,
+e.g. `TICKET-014-inventory-drag-drop.md`. The ID inside the frontmatter is
+the source of truth if filename and frontmatter ever disagree.
+
+`ART-NNN` is functionally identical to `TICKET-NNN` — same frontmatter
+shape, same status machine, same `depends_on` mechanism (a code ticket can
+`depends_on` an art ticket it needs finished first). It's a separate
+prefix/directory purely so a human scanning `tasks/` sees code work and art
+work as distinct piles; the only real difference is which agent implements
+it (`gdo-artist` instead of `gdo-implementer` — decided by which directory
+the item's file lives in, not by anything in its frontmatter).
 
 ## Ticket frontmatter schema
 
@@ -193,6 +211,38 @@ gets rejected as non-fast-forward.
   criteria as a checklist.
 - Merge strategy: squash merge, delete branch after merge.
 
+## Art pipeline
+
+Art needs are `ART-NNN` tickets (`tasks/art/`), implemented by
+`gdo-artist` instead of `gdo-implementer`, through the same
+implement → PR → review → merge → QA cycle as any code ticket. A code
+ticket that needs an asset first should `depends_on` the `ART-NNN` ticket
+for it, same mechanism as any other dependency.
+
+**Default is placeholder, always, autonomously.** `gdo-artist` doesn't
+search the project's existing assets, doesn't pull third-party art, and
+doesn't call out to any external generation service — it generates
+original, trivial placeholder art via `.claude/scripts/gdo_placeholder_art.py`
+(stdlib-only PNG/WAV writer, no PIL dependency): a "missing texture"
+checkerboard or solid color for 2D images, a silent stub for audio. This is
+a deliberate choice, not a limitation to route around: placeholders carry
+zero licensing risk and never block the pipeline, matching how real studios
+actually handle early production (grey-box first). Placeholder files are
+named with `.placeholder.` in the filename (e.g.
+`player_idle.placeholder.png`) so they're easy to find and swap for real
+art later — `gdo-reviewer` checks for this and for the PR being honest
+about what it shipped.
+
+3D models and anything else the generator can't meaningfully fake aren't
+routed around with a fake file — `gdo-artist` escalates those the same way
+any agent escalates a can't-proceed-without-a-decision case.
+
+If a project's `docs/engine.md` (written by `/gdo-setup`) records a
+connected engine MCP, that's available for `gdo-artist` (or any agent) to
+use where it's naturally the right tool — this framework doesn't hard-wire
+any engine-specific tool calls anywhere, agents just use whatever's
+actually in their session.
+
 ## Ground rules for agents operating in this repo
 
 - Use `.claude/scripts/gdo_board.py` to read computed state (ready/blocked/
@@ -205,4 +255,6 @@ gets rejected as non-fast-forward.
 - If a ticket's acceptance criteria are ambiguous or contradict the GDD/MVP,
   stop and flag it (`status: blocked`, note why) rather than guessing.
 - This framework is engine-agnostic by design — don't assume Unity/Godot/
-  Unreal specifics unless a ticket says so explicitly.
+  Unreal specifics unless a ticket, or `docs/engine.md`, says so explicitly.
+  Never name a specific MCP tool/package as available unless you've
+  actually verified it's connected in the current session.

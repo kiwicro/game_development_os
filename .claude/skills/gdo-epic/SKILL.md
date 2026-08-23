@@ -22,14 +22,15 @@ and refuse: tell the user to finish `/gdo-mvp` first.
 
 ## Allocating IDs
 
-IDs are monotonically increasing per prefix (`EPIC-`, `TICKET-`, `BUG-`)
-across the whole `tasks/` tree — never reused, even if a file is later
-deleted. Don't compute this by eye; shell out to the board helper, which is
-the authoritative source for it:
+IDs are monotonically increasing per prefix (`EPIC-`, `TICKET-`, `BUG-`,
+`ART-`) across the whole `tasks/` tree — never reused, even if a file is
+later deleted. Don't compute this by eye; shell out to the board helper,
+which is the authoritative source for it:
 
 ```
 python .claude/scripts/gdo_board.py next-id EPIC
 python .claude/scripts/gdo_board.py next-id TICKET
+python .claude/scripts/gdo_board.py next-id ART
 ```
 
 Call it once per file you're about to create, right before writing that
@@ -50,24 +51,35 @@ the area under discussion:
    what the reviewer and QA subagents will check against later, once
    autonomous execution exists) — not "code is clean" or "works well."
    Surface dependencies between tickets explicitly (`depends_on`).
-3. Present the proposed breakdown to the user — epic summaries first, then
-   ticket lists per epic. This is genuinely collaborative: the user may
-   want tickets split differently, scoped differently, reordered, or cut
-   entirely. Iterate until they're satisfied. Use AskUserQuestion for
-   clean-cut decisions (e.g. "split this into two tickets or keep it as
-   one?"), plain conversation otherwise.
+3. **Notice when a ticket needs an art asset** — a sprite, texture, icon,
+   UI element, or sound the ticket can't actually be verified without.
+   Don't fold "and also make the art" into the code ticket; propose a
+   separate `ART-NNN` ticket for it and wire the code ticket's
+   `depends_on` to it. This isn't optional busywork — a code ticket whose
+   acceptance criteria require an asset that doesn't exist yet can't be
+   implemented, let alone verified, without one. See `CLAUDE.md`'s art
+   pipeline section: the default is placeholder art, generated
+   autonomously, so this never becomes a real bottleneck.
+4. Present the proposed breakdown to the user — epic summaries first, then
+   ticket lists per epic (art tickets included, clearly marked as such).
+   This is genuinely collaborative: the user may want tickets split
+   differently, scoped differently, reordered, or cut entirely. Iterate
+   until they're satisfied. Use AskUserQuestion for clean-cut decisions
+   (e.g. "split this into two tickets or keep it as one?"), plain
+   conversation otherwise.
 
 ## Writing files
 
-Use `tasks/_templates/epic.md` and `tasks/_templates/ticket.md` as the
-shape. Epics start `status: draft`. Tickets start `status: backlog`
-(regardless of their epic's status — a ticket only becomes eligible to run
-once its epic is `ready` *and* its own `depends_on` are satisfied, per
-`CLAUDE.md`'s status machine).
+Use `tasks/_templates/epic.md`, `tasks/_templates/ticket.md`, and (for any
+art tickets) `tasks/_templates/art.md` as the shape. Epics start
+`status: draft`. Tickets/art start `status: backlog` (regardless of their
+epic's status — an item only becomes eligible to run once its epic is
+`ready` *and* its own `depends_on` are satisfied, per `CLAUDE.md`'s status
+machine).
 
-Write the epic file first (so you know its ID for the tickets' `epic:`
-field), then each ticket file. Update the epic's `## Tickets` list with the
-final ticket IDs once all are written.
+Write the epic file first (so you know its ID for the tickets'/art's
+`epic:` field), then each ticket/art file. Update the epic's `## Tickets`
+list with the final IDs once all are written.
 
 ## After writing
 
@@ -80,14 +92,10 @@ undetected in the repo. Fix anything it flags before moving on.
 
 An epic sitting at `status: draft` does nothing — it's inert until promoted.
 Once the user is happy with an epic and its tickets, ask explicitly: *"Set
-EPIC-NNN to ready? This releases it to autonomous execution once /gdo-run
-exists."* Only flip `status: ready` on an explicit yes. Never do this as
+EPIC-NNN to ready? This releases it to autonomous execution via
+/gdo-run."* Only flip `status: ready` on an explicit yes. Never do this as
 part of routine drafting, and never do it for an epic the user hasn't
 reviewed in this session.
-
-(Autonomous execution itself — `/gdo-run` — doesn't exist yet as of this
-skill; promoting to `ready` today just marks the epic as design-approved and
-queued for when it does.)
 
 ## Ground rules
 
