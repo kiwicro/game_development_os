@@ -33,8 +33,11 @@ verdicts before giving up — a 4th attempt is never spawned automatically):
 
 2. **APPROVE →** merge and stop:
    - `gh pr merge <pr-url> --squash --delete-branch`
+   - `git pull --rebase origin main` — the squash-merge just advanced
+     `origin/main` independently of the local checkout; skip this and the
+     next push gets rejected as non-fast-forward.
    - `python .claude/scripts/gdo_board.py set-status <ID> merged`, then
-     `git add tasks/ && git commit -m "<ID>: merged"`.
+     `git add tasks/ && git commit -m "<ID>: merged"`, then `git push`.
    - Report the merge to the user, including the reviewer's acceptance-
      criteria verification. Mention that QA (Phase 5, not built yet) is the
      next stage once it exists — for now `merged` is as far as this skill

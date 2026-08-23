@@ -153,6 +153,12 @@ current inside a spawned worktree needs that status change committed (a
 plain local commit is enough — it doesn't need to be pushed) before the
 `Agent` call, not just written to disk.
 
+**Pull before pushing a board-state commit right after a merge.** Found in
+Phase 4: `gh pr merge` advances `origin/main` on GitHub independently of
+the local checkout. Committing a ticket's `merged` status locally and
+pushing right after, without a `git pull --rebase origin main` in between,
+gets rejected as non-fast-forward.
+
 ## Branch and PR conventions
 
 - Branch: `ticket/TICKET-NNN-<slug>` (matches the ticket filename slug).
