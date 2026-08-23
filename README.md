@@ -21,28 +21,34 @@ plan for current status.
 
 ## Status
 
-Phase 6 — full autonomy. `/gdo-run` chains implement → review/iterate →
-merge → QA automatically across an epic's entire ticket queue via
-`gdo-orchestrator`, resuming each ticket at whatever stage it's actually
-at. Verified for real: spawned as a single background agent against
-EPIC-001 with a mix of stalled and fresh work (two tickets sitting merged
-but un-QA'd, one bug ticket needing the full cycle from scratch), it ran
-completely unattended — no manual steps between invocation and the epic
-reaching `done` — including recovering from its own operational hiccup
-(stale worktree references blocking a branch delete) without escalating.
-Independently re-verified afterward: git history, GitHub PR state, and the
-actual shipped fix all matched its report exactly.
+Phase 7 — observability. The full pipeline works end to end and has been
+run for real (see below); this phase sharpened how it's monitored.
+`/gdo-board` now leads with a `NEEDS ATTENTION` section — anything
+`blocked`, plus anything one rejection or regression away from blocking —
+before the per-epic detail, so what needs a human is visible at a glance
+rather than found by reading every ticket. `gdo-orchestrator`'s final
+report follows a fixed template (status first, then a summary, a tickets
+table, blocked items, bugs filed) instead of free-form prose, so `/gdo-run`
+relays a consistent shape every time.
+
+`/gdo-run` chains implement → review/iterate → merge → QA automatically
+across an epic's entire ticket queue via `gdo-orchestrator`, resuming each
+ticket at whatever stage it's actually at. Verified for real: spawned as a
+single background agent against EPIC-001 with a mix of stalled and fresh
+work, it ran completely unattended to a finished epic, including
+recovering from its own operational hiccup without escalating.
+Independently re-verified afterward — git history, GitHub PR state, and
+the actual shipped fix all matched its report exactly.
 
 The single-ticket triggers (`/gdo-implement`, `/gdo-review`,
 `/gdo-qa-run`) still exist and work standalone — useful for handling one
 ticket by hand without invoking full epic autonomy. `/gdo-gdd`,
-`/gdo-mvp`, `/gdo-epic`, `/gdo-board`, the `gdo-design-reviewer` agent, and
+`/gdo-mvp`, `/gdo-epic`, the `gdo-design-reviewer` agent, and
 `.claude/scripts/gdo_board.py` round out the human-in-the-loop and
 bookkeeping side.
 
-Remaining framework work is polish, not new capability: an observability
-pass (a clearer status view / dashboard) and hardening from one more full
-run.
+Remaining framework work (Phase 8) is hardening, not new capability: one
+more full run to shake out rough edges.
 
 Requires Python 3.8+ on PATH for the board tooling — independent of
 whatever engine/language the game itself uses.
