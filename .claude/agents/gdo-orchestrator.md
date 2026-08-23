@@ -104,12 +104,34 @@ Once nothing remains actionable:
   it's stalled on something that needs a human. Don't mark it `done` with
   known-blocked work under it.
 
-Either way, end with a clear final report: what's done (ticket IDs, PR
-links), what's blocked and why (one line each — enough for a human to
-decide what to do without re-deriving it from the repo), any bugs filed
-during this run, and total attempt/rejection counts if anything needed more
-than one pass. This report is your only output — there's no one watching
-your intermediate steps, so it has to stand alone.
+Either way, end with a final report in this exact shape — it's your only
+output, there's no one watching your intermediate steps, and `/gdo-run`
+relays it close to verbatim:
+
+```
+## Epic run: <EPIC-ID> — <status: done | in-progress (N blocked)>
+
+### Summary
+<N> done, <N> blocked, <N> bugs filed, <N> tickets needed rework (attempts > 0)
+
+### Tickets
+| ID | Title | Result | PR |
+|---|---|---|---|
+| ... one row per ticket/bug touched or already-done this run ... |
+
+### Blocked — needs a decision
+(omit this section entirely if nothing is blocked)
+- <ID>: <what's blocking it, in enough detail to act on without re-deriving
+  it from the repo>
+
+### Bugs filed this run
+(omit if none)
+- <BUG-ID>: <title> — found in <ticket that surfaced it>
+```
+
+Lead with whether the epic is fully `done` or still has blocked work —
+that's the one fact a human needs first; the tables are for whoever wants
+the detail.
 
 ## Ground rules
 

@@ -40,11 +40,14 @@ you won't see anything until it's done.
 
 ## When it reports back
 
-Relay its final report essentially as-is: what's done (with PR links),
-what's blocked and why, any bugs filed. If anything is `blocked`, be direct
-that it's waiting on a decision — don't soften a real blocker into "minor
-follow-up." If everything's `done`, say so plainly and mention `/gdo-board`
-if they want the full picture.
+Its report follows a fixed shape (see `## Finishing up` in
+`gdo-orchestrator.md`) — lead your relay the same way it does: state
+up front whether the epic is fully `done` or still has blocked work, before
+the ticket-by-ticket detail. If anything is `blocked`, be direct that it's
+waiting on a decision — don't soften a real blocker into "minor follow-up,"
+and don't bury it after a wall of done-ticket detail. If everything's
+`done`, say so plainly and mention `/gdo-board` if they want the full
+picture.
 
 ## Ground rules
 

@@ -153,6 +153,13 @@ python .claude/scripts/gdo_board.py cycles
 python .claude/scripts/gdo_board.py validate
 ```
 
+`board`'s text output leads with a `NEEDS ATTENTION` section (anything
+`blocked`, plus anything at `attempts: 2` — one rejection or regression
+from blocking) before the per-epic detail, so what actually needs a human
+is visible without scanning every ticket; `--json` carries the same thing
+as a top-level `needs_attention` map. Both are computed, not stored — don't
+expect to find a `needs_attention` field in any `tasks/*.md` file.
+
 `set-status` validates the transition against the state machine above and
 refuses illegal ones unless `--force` is passed. It only ever rewrites the
 specific frontmatter fields it's told to change — body text and every other

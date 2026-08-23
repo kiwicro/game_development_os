@@ -385,8 +385,16 @@ def cmd_board(args):
             counts[it["status"]] = counts.get(it["status"], 0) + 1
         return counts
 
+    def needs_attention(i):
+        if i.get("status") == "blocked":
+            return "blocked"
+        attempts = i.get("attempts") or 0
+        if isinstance(attempts, int) and attempts >= 2 and i.get("status") != "done":
+            return f"attempt {attempts}/3 — one more rejection/regression blocks this"
+        return None
+
     if args.json:
-        out = {"epics": {}, "design_docs": {}}
+        out = {"epics": {}, "design_docs": {}, "needs_attention": {}}
         for eid, epic in epics.items():
             if epic_filter and eid != epic_filter:
                 continue
@@ -398,6 +406,7 @@ def cmd_board(args):
                     iid: {
                         "title": i.get("title"),
                         "status": i.get("status"),
+                        "attempts": i.get("attempts") or 0,
                         "ready": is_ready(i, epics, items),
                         "blocked_reason": blocked_reason(i, epics, items) if not is_ready(i, epics, items) else None,
                         "pr_url": i.get("pr_url"),
@@ -405,10 +414,28 @@ def cmd_board(args):
                     for iid, i in items.items() if i.get("epic") == eid
                 },
             }
+            for iid, i in items.items():
+                if i.get("epic") != eid:
+                    continue
+                attn = needs_attention(i)
+                if attn:
+                    out["needs_attention"][iid] = attn
         print(json.dumps(out, indent=2))
         return 0
 
     print("=== Game Development OS — Board ===\n")
+
+    attention_items = [
+        (iid, i) for iid, i in sorted(items.items())
+        if (not epic_filter or i.get("epic") == epic_filter) and needs_attention(i)
+    ]
+    if attention_items:
+        print("NEEDS ATTENTION:")
+        for iid, i in attention_items:
+            why = needs_attention(i)
+            pr = f" — {i['pr_url']}" if i.get("pr_url") else ""
+            print(f"  {iid:<10} [{i.get('status'):<18}] {why}{pr}")
+        print()
 
     gdd_path = REPO_ROOT / "docs" / "gdd.md"
     mvp_path = REPO_ROOT / "docs" / "mvp.md"
@@ -429,8 +456,9 @@ def cmd_board(args):
         if epic_filter and eid != epic_filter:
             continue
         eitems = [i for i in items.values() if i.get("epic") == eid]
-        done_n = sum(1 for i in eitems if i.get("status") == "done")
-        print(f"  {eid:<10} {epic.get('title', ''):<28} [{epic.get('status'):<11}] {done_n}/{len(eitems)} done")
+        counts = status_summary(eitems)
+        breakdown = ", ".join(f"{n} {s}" for s, n in sorted(counts.items(), key=lambda kv: -kv[1])) or "no tickets"
+        print(f"  {eid:<10} {epic.get('title', ''):<28} [{epic.get('status'):<11}] {breakdown}")
     print()
 
     for eid, epic in sorted(epics.items()):
@@ -441,10 +469,16 @@ def cmd_board(args):
         if not eitems:
             print("  (no tickets yet)")
         for i in eitems:
-            ready = is_ready(i, epics, items)
-            tag = "ready-to-start" if ready else (blocked_reason(i, epics, items) or "")
-            marker = f"  <- {tag}" if ready else (f"  ({tag})" if tag else "")
-            print(f"  {i['id']:<10} [{i.get('status'):<18}] {i.get('title', ''):<32}{marker}")
+            if i.get("status") == "done":
+                marker = ""
+            else:
+                ready = is_ready(i, epics, items)
+                tag = "ready-to-start" if ready else (blocked_reason(i, epics, items) or "")
+                marker = f"  <- {tag}" if ready else (f"  ({tag})" if tag else "")
+            attempts = i.get("attempts") or 0
+            attempt_tag = f" [attempt {attempts}/3]" if attempts else ""
+            pr_tag = f"  {i['pr_url']}" if i.get("pr_url") else ""
+            print(f"  {i['id']:<10} [{i.get('status'):<18}] {i.get('title', ''):<32}{attempt_tag}{marker}{pr_tag}")
         print()
 
     return 0

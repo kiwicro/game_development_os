@@ -16,13 +16,15 @@ Run:
 python .claude/scripts/gdo_board.py board [--epic <ID>]
 ```
 
-Show the output to the user essentially as-is — it's already organized
-(design doc status, per-epic ticket counts, then each epic's tickets with
-`ready-to-start` or a blocked reason). Add narration only where it's
-genuinely useful: e.g. if something is ready to start and autonomous
-execution exists yet, mention it; if a ticket has been sitting `blocked`
-because of exhausted attempts, flag that clearly since it means a human
-decision is needed.
+Show the output to the user essentially as-is — it's already organized to
+be scanned, not read top-to-bottom: a `NEEDS ATTENTION` section up front
+(anything `blocked`, plus anything at `attempts: 2` that's one rejection or
+regression away from blocking) before the per-epic detail, so what actually
+needs a human is visible without reading every ticket. Add narration only
+where it's genuinely useful — e.g. if something is `ready-to-start` and
+`/gdo-run` hasn't been used on that epic yet, mention it; if `NEEDS
+ATTENTION` isn't empty, lead with that rather than burying it after the
+full listing.
 
 If `tasks/epics/` is empty, the script says so — point the user at
 `/gdo-gdd` → `/gdo-mvp` → `/gdo-epic` as the path to get there.
