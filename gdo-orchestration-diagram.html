@@ -1,0 +1,446 @@
+<title>The GDO Orchestration Loop</title>
+<style>
+  :root {
+    --paper: #eff4f3;
+    --surface: #ffffff;
+    --surface-2: #e4ece9;
+    --ink: #101817;
+    --ink-dim: #47605a;
+    --line: rgba(16, 24, 23, 0.14);
+    --line-strong: rgba(16, 24, 23, 0.28);
+    --accent: #0d7c74;
+    --accent-soft: rgba(13, 124, 116, 0.12);
+    --sev-open: #b6412f;
+    --sev-open-soft: rgba(182, 65, 47, 0.10);
+    --sev-review: #a9761c;
+    --sev-review-soft: rgba(169, 118, 28, 0.12);
+    --sev-done: #2c7a4b;
+    --sev-done-soft: rgba(44, 122, 75, 0.12);
+    --shadow: 0 1px 2px rgba(16, 24, 23, 0.04), 0 8px 24px rgba(16, 24, 23, 0.05);
+    --mono: ui-monospace, "Cascadia Code", "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0a1211;
+      --surface: #101a19;
+      --surface-2: #16211f;
+      --ink: #e9f2f0;
+      --ink-dim: #8fada6;
+      --line: rgba(233, 242, 240, 0.12);
+      --line-strong: rgba(233, 242, 240, 0.26);
+      --accent: #39d6c4;
+      --accent-soft: rgba(57, 214, 196, 0.14);
+      --sev-open: #e07a68;
+      --sev-open-soft: rgba(224, 122, 104, 0.14);
+      --sev-review: #e0b25b;
+      --sev-review-soft: rgba(224, 178, 91, 0.14);
+      --sev-done: #6bc98d;
+      --sev-done-soft: rgba(107, 201, 141, 0.14);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 28px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #0a1211;
+    --surface: #101a19;
+    --surface-2: #16211f;
+    --ink: #e9f2f0;
+    --ink-dim: #8fada6;
+    --line: rgba(233, 242, 240, 0.12);
+    --line-strong: rgba(233, 242, 240, 0.26);
+    --accent: #39d6c4;
+    --accent-soft: rgba(57, 214, 196, 0.14);
+    --sev-open: #e07a68;
+    --sev-open-soft: rgba(224, 122, 104, 0.14);
+    --sev-review: #e0b25b;
+    --sev-review-soft: rgba(224, 178, 91, 0.14);
+    --sev-done: #6bc98d;
+    --sev-done-soft: rgba(107, 201, 141, 0.14);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 28px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection { background: var(--accent-soft); }
+
+  .wrap {
+    max-width: 1220px;
+    margin: 0 auto;
+    padding: 56px 24px 100px;
+  }
+
+  header.hero {
+    max-width: 760px;
+    margin-bottom: 40px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 22px;
+    height: 1.5px;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: clamp(26px, 4vw, 36px);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin: 0 0 16px;
+    text-wrap: balance;
+  }
+
+  .dek {
+    font-size: 16.5px;
+    color: var(--ink-dim);
+    max-width: 62ch;
+    margin: 0;
+  }
+
+  figure {
+    margin: 0 0 18px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 20px 20px 8px;
+  }
+
+  .diagram-scroll {
+    overflow-x: auto;
+  }
+
+  svg {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    min-width: 780px;
+  }
+
+  figcaption {
+    font-size: 13.5px;
+    color: var(--ink-dim);
+    padding: 14px 4px 6px;
+    border-top: 1px solid var(--line);
+    margin-top: 8px;
+  }
+
+  /* legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin: 24px 0 44px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--ink-dim);
+  }
+  .legend-item svg { width: 34px; height: 12px; flex: none; min-width: 0; }
+
+  /* actors */
+  h2 {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    margin: 0 0 4px;
+  }
+  .section-sub {
+    color: var(--ink-dim);
+    font-size: 13.5px;
+    margin: 0 0 16px;
+  }
+
+  .actors {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .actors th, .actors td {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  .actors tr:last-child td { border-bottom: none; }
+  .actors th {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    font-weight: 600;
+    background: var(--surface-2);
+  }
+  .actors td:first-child {
+    font-family: var(--mono);
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--accent);
+  }
+  .actors td:last-child { color: var(--ink-dim); font-size: 13px; white-space: nowrap; }
+  .actors-wrap { overflow-x: auto; margin-top: 44px; }
+
+  /* svg node/text base */
+  .node-rect { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.5; }
+  .node-title { font-family: var(--mono); font-size: 13px; font-weight: 600; fill: var(--ink); }
+  .node-sub { font-family: var(--sans); font-size: 10.5px; fill: var(--ink-dim); }
+  .arrow-label { font-family: var(--sans); font-size: 10.5px; fill: var(--ink-dim); }
+  .arrow-label-strong { font-family: var(--mono); font-size: 10.5px; fill: var(--ink); }
+  .tag { font-family: var(--mono); font-size: 9px; fill: var(--ink-dim); }
+  .pill-text { font-family: var(--mono); font-size: 11px; fill: var(--ink-dim); }
+
+  footer {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--ink-dim);
+    font-family: var(--mono);
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">Architecture — Game Development OS</div>
+    <h1>The GDO Orchestration Loop</h1>
+    <p class="dek">
+      Two halves, joined at one deliberate checkpoint: a design funnel only a
+      human can advance, handing off into a per-ticket execution loop that
+      <code>gdo-orchestrator</code> drives end to end — implement, review,
+      merge, QA — on its own, until the epic is done or something genuinely
+      needs a decision.
+    </p>
+  </header>
+
+  <figure>
+    <div class="diagram-scroll">
+      <svg viewBox="0 0 1200 660" role="img" aria-label="Diagram: a design funnel (Concept, GDD with a design-reviewer critique loop, MVP, Epic and Tickets) passes through a human-approval gate into an autonomous per-ticket loop (Ready, Implement, Review, Merged, QA, Done) with two capped rework loops feeding back into Implement, a path from QA that spawns a new bug ticket back into Ready, and an escalation path from Review or QA to a Blocked state that reports to a human.">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--sev-review)"/>
+          </marker>
+          <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--sev-open)"/>
+          </marker>
+          <marker id="arrowAccent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"/>
+          </marker>
+        </defs>
+
+        <!-- ============ ROW A: design funnel ============ -->
+
+        <!-- reviewer critique loop -->
+        <path d="M 295 70 C 280 34, 350 34, 335 70" fill="none" stroke="var(--sev-review)" stroke-width="1.5" marker-end="url(#arrowAmber)"/>
+        <ellipse cx="315" cy="26" rx="98" ry="17" fill="var(--sev-review-soft)" stroke="var(--sev-review)" stroke-width="1.2"/>
+        <text x="315" y="30" text-anchor="middle" class="pill-text">gdo-design-reviewer</text>
+        <text x="315" y="10" text-anchor="middle" class="arrow-label">critique · revise · ≤5 rounds</text>
+
+        <!-- concept -->
+        <rect x="20" y="78" width="150" height="42" rx="21" class="node-rect"/>
+        <text x="95" y="103" text-anchor="middle" class="node-title" font-size="12">Concept / Pitch</text>
+
+        <!-- GDD -->
+        <line x1="170" y1="99" x2="228" y2="99" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <rect x="230" y="70" width="160" height="54" rx="8" class="node-rect"/>
+        <text x="310" y="93" text-anchor="middle" class="node-title">GDD</text>
+        <text x="310" y="110" text-anchor="middle" class="node-sub">draft ↔ approved</text>
+
+        <!-- MVP -->
+        <line x1="390" y1="97" x2="448" y2="97" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="419" y="88" text-anchor="middle" class="arrow-label">approved</text>
+        <rect x="450" y="70" width="150" height="54" rx="8" class="node-rect"/>
+        <text x="525" y="93" text-anchor="middle" class="node-title">MVP</text>
+        <text x="525" y="110" text-anchor="middle" class="node-sub">scope cut</text>
+
+        <!-- Epic + Tickets -->
+        <line x1="600" y1="97" x2="658" y2="97" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="629" y="88" text-anchor="middle" class="arrow-label">approved</text>
+        <rect x="660" y="70" width="200" height="54" rx="8" class="node-rect"/>
+        <text x="760" y="93" text-anchor="middle" class="node-title">Epic + Tickets</text>
+        <text x="760" y="110" text-anchor="middle" class="node-sub">drafted with you</text>
+
+        <!-- gate -->
+        <line x1="760" y1="124" x2="760" y2="158" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#arrowAccent)"/>
+        <rect x="20" y="160" width="1160" height="36" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.3"/>
+        <text x="600" y="183" text-anchor="middle" font-family="var(--mono)" font-size="12.5" font-weight="600" fill="var(--accent)">you promote the epic → ready</text>
+
+        <path d="M 760 196 L 760 216 L 105 216 L 105 258" fill="none" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#arrowAccent)"/>
+
+        <!-- ============ ROW B: execution spine ============ -->
+
+        <!-- Ready -->
+        <rect x="30" y="260" width="150" height="60" rx="8" class="node-rect"/>
+        <text x="105" y="286" text-anchor="middle" class="node-title">Ready</text>
+        <text x="105" y="302" text-anchor="middle" class="node-sub">backlog · deps met</text>
+
+        <!-- Implement -->
+        <line x1="180" y1="290" x2="228" y2="290" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="205" y="272" text-anchor="middle" class="arrow-label-strong">gdo-implementer</text>
+        <text x="205" y="284" text-anchor="middle" class="arrow-label">code + PR</text>
+        <rect x="230" y="260" width="150" height="60" rx="8" class="node-rect"/>
+        <text x="305" y="286" text-anchor="middle" class="node-title">Implement</text>
+        <text x="305" y="302" text-anchor="middle" class="node-sub">in-progress</text>
+        <text x="372" y="272" text-anchor="end" class="tag">[worktree]</text>
+
+        <!-- Review -->
+        <line x1="380" y1="290" x2="428" y2="290" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="404" y="278" text-anchor="middle" class="arrow-label">PR opened</text>
+        <rect x="430" y="260" width="150" height="60" rx="8" class="node-rect"/>
+        <text x="505" y="286" text-anchor="middle" class="node-title">In Review</text>
+        <text x="505" y="302" text-anchor="middle" class="node-sub">PR open</text>
+        <text x="572" y="272" text-anchor="end" class="tag">[worktree]</text>
+
+        <!-- Merged -->
+        <line x1="580" y1="290" x2="628" y2="290" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="605" y="272" text-anchor="middle" class="arrow-label-strong">gdo-reviewer</text>
+        <text x="605" y="284" text-anchor="middle" class="arrow-label">APPROVE</text>
+        <rect x="630" y="260" width="150" height="60" rx="8" class="node-rect"/>
+        <text x="705" y="286" text-anchor="middle" class="node-title">Merged</text>
+        <text x="705" y="302" text-anchor="middle" class="node-sub">squash + delete branch</text>
+
+        <!-- QA -->
+        <line x1="780" y1="290" x2="828" y2="290" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="805" y="272" text-anchor="middle" class="arrow-label-strong">gdo-qa</text>
+        <text x="805" y="284" text-anchor="middle" class="arrow-label">re-verify + explore</text>
+        <rect x="830" y="260" width="150" height="60" rx="8" class="node-rect"/>
+        <text x="905" y="286" text-anchor="middle" class="node-title">QA</text>
+        <text x="905" y="302" text-anchor="middle" class="node-sub">on mainline</text>
+        <text x="972" y="272" text-anchor="end" class="tag">[worktree]</text>
+
+        <!-- Done -->
+        <line x1="980" y1="290" x2="1028" y2="290" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="1004" y="278" text-anchor="middle" class="arrow-label">clean</text>
+        <rect x="1030" y="260" width="150" height="60" rx="8" fill="var(--sev-done-soft)" stroke="var(--sev-done)" stroke-width="1.5"/>
+        <text x="1105" y="286" text-anchor="middle" class="node-title" fill="var(--sev-done)">Done</text>
+        <text x="1105" y="302" text-anchor="middle" class="node-sub">terminal</text>
+
+        <!-- ============ rework loops (below spine) ============ -->
+
+        <!-- lane 1: review reject -->
+        <path d="M 505 320 L 505 340 L 305 340 L 305 320" fill="none" stroke="var(--sev-review)" stroke-width="1.5" marker-end="url(#arrowAmber)"/>
+        <text x="405" y="333" text-anchor="middle" font-family="var(--sans)" font-size="10.5" fill="var(--sev-review)">REQUEST_CHANGES · attempts++ (≤3)</text>
+
+        <!-- lane 2: qa regression -->
+        <path d="M 905 320 L 905 402 L 330 402 L 330 320" fill="none" stroke="var(--sev-review)" stroke-width="1.5" marker-end="url(#arrowAmber)"/>
+        <text x="617" y="395" text-anchor="middle" font-family="var(--sans)" font-size="10.5" fill="var(--sev-review)">regression · attempts++ · same ≤3 cap</text>
+
+        <!-- lane 3: bug spawns new ticket -->
+        <path d="M 855 320 L 855 460 L 105 460 L 105 320" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrowAccent)"/>
+        <text x="480" y="453" text-anchor="middle" font-family="var(--sans)" font-size="10.5" fill="var(--accent)">bug found, out of ticket's scope → new BUG-NNN re-enters Ready</text>
+
+        <!-- ============ escalation ============ -->
+
+        <line x1="540" y1="313" x2="672" y2="500" stroke="var(--sev-open)" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#arrowRed)"/>
+        <text x="565" y="420" transform="rotate(58 565 420)" font-family="var(--sans)" font-size="10" fill="var(--sev-open)">3rd rejection</text>
+
+        <line x1="880" y1="313" x2="770" y2="500" stroke="var(--sev-open)" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#arrowRed)"/>
+        <text x="850" y="420" transform="rotate(-58 850 420)" font-family="var(--sans)" font-size="10" fill="var(--sev-open)">3rd regression</text>
+
+        <rect x="600" y="505" width="160" height="50" rx="8" fill="var(--sev-open-soft)" stroke="var(--sev-open)" stroke-width="1.5"/>
+        <text x="680" y="527" text-anchor="middle" class="node-title" fill="var(--sev-open)">Blocked</text>
+        <text x="680" y="543" text-anchor="middle" class="node-sub">attempts cap hit</text>
+
+        <line x1="680" y1="555" x2="680" y2="586" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <rect x="600" y="588" width="160" height="50" rx="8" class="node-rect"/>
+        <text x="680" y="610" text-anchor="middle" class="node-title">Human</text>
+        <text x="680" y="626" text-anchor="middle" class="node-sub">flagged in the report</text>
+        <text x="770" y="614" font-family="var(--sans)" font-size="10.5" fill="var(--ink-dim)">↺ resumes once un-blocked</text>
+      </svg>
+    </div>
+    <figcaption>
+      Top: the design funnel, gated at every step by an explicit approval —
+      GDD drafting loops with an independent design-reviewer critique before
+      MVP scoping unlocks, and MVP before epic/ticket breakdown. The one
+      manual action that unlocks everything below it: promoting an epic to
+      <code>ready</code>. Bottom: <code>gdo-orchestrator</code>'s per-ticket
+      loop — the only fully autonomous part of the system, spawning
+      <code>gdo-implementer</code>, <code>gdo-reviewer</code>, and
+      <code>gdo-qa</code> in isolated git worktrees, one ticket at a time,
+      re-reading state after every step since a QA pass can spawn new work
+      mid-run.
+    </figcaption>
+  </figure>
+
+  <div class="legend">
+    <div class="legend-item">
+      <svg viewBox="0 0 34 12"><line x1="2" y1="6" x2="30" y2="6" stroke="currentColor" stroke-width="2"/></svg>
+      forward progress
+    </div>
+    <div class="legend-item">
+      <svg viewBox="0 0 34 12"><line x1="2" y1="6" x2="30" y2="6" stroke="var(--sev-review)" stroke-width="2"/></svg>
+      rework loop, capped at 3
+    </div>
+    <div class="legend-item">
+      <svg viewBox="0 0 34 12"><line x1="2" y1="6" x2="30" y2="6" stroke="var(--sev-open)" stroke-width="2" stroke-dasharray="4 3"/></svg>
+      cap exceeded → blocked
+    </div>
+    <div class="legend-item">
+      <svg viewBox="0 0 34 12"><line x1="2" y1="6" x2="30" y2="6" stroke="var(--accent)" stroke-width="2" stroke-dasharray="4 3"/></svg>
+      spawns a new ticket
+    </div>
+  </div>
+
+  <div class="actors-wrap">
+    <h2>Who does what</h2>
+    <p class="section-sub">Five agent types, each defined in <code>.claude/agents/</code>, each with only the tool access its role needs.</p>
+    <table class="actors">
+      <thead>
+        <tr><th>Agent</th><th>Role</th><th>Runs</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>gdo-orchestrator</td><td>Drives the whole per-epic loop — the only agent with its own tool access to spawn the other four.</td><td>main checkout</td></tr>
+        <tr><td>gdo-implementer</td><td>Writes the code, verifies it against the ticket's own acceptance criteria, commits, opens or updates the PR.</td><td>isolated worktree</td></tr>
+        <tr><td>gdo-reviewer</td><td>Checks out the real branch, re-verifies every criterion by running it, posts REQUEST_CHANGES findings as a PR comment.</td><td>isolated worktree</td></tr>
+        <tr><td>gdo-qa</td><td>Re-verifies on actual mainline post-merge, plus a scoped exploratory pass beyond the ticket's literal scope.</td><td>isolated worktree</td></tr>
+        <tr><td>gdo-design-reviewer</td><td>Critiques the GDD before MVP scoping unlocks. Design-time only — not part of the execution loop below the gate.</td><td>isolated worktree</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>gdo-orchestration-diagram.html — architecture reference</footer>
+
+</div>
