@@ -30,6 +30,11 @@ and stop (e.g. `in-review` means `/gdo-review` hasn't approved it yet).
 2. Parse the outcome and act — the four outcomes aren't mutually exclusive
    with the actions below; do all that apply:
 
+   Either way, the ticket passes through `qa` first — `merged` only
+   transitions to `qa`, never directly to `in-progress` or `done` (see the
+   state machine in `CLAUDE.md`):
+   `python .claude/scripts/gdo_board.py set-status <ID> qa`, commit.
+
    **If the ticket's own acceptance criteria are NOT MET (regression):**
    - `python .claude/scripts/gdo_board.py set-status <ID> in-progress`,
      commit.
