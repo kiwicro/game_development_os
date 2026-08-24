@@ -85,6 +85,14 @@ When the user says the draft is ready:
    see this drafting conversation) with a prompt pointing it at
    `docs/gdd.md` in this repo and asking it to apply its review lens and
    return its verdict.
+
+   **On round 2 and later, tell it the round number and give it two
+   things**: the previous round's findings verbatim, and a short list of
+   what actually changed in response. That scopes it to verifying those
+   findings and catching what the edits introduced, instead of re-deriving
+   a full critique of a document that keeps growing — which is why later
+   rounds otherwise cost more than earlier ones without finding
+   proportionally more.
 3. Append a new entry to `## Review Log` in `docs/gdd.md`:
    ```
    ### Round N — <date> — <verdict>
@@ -94,6 +102,13 @@ When the user says the draft is ready:
 4. Present the reviewer's findings to the user in full (don't summarize
    away the concerns) and discuss them like a design partner would — you
    can share your own read, but the call is the user's.
+
+   **Put `## Unresolved design decisions` in front of them as one block,
+   not one at a time.** Each of those is a creative call only they can
+   make, and answering them together is what collapses this gate from four
+   rounds to two — asking one, revising, and re-reviewing only to meet the
+   next one is the same four decisions serialized. Use `AskUserQuestion`
+   where the options are genuinely discrete.
 5. Ask the user how to proceed:
    - **Revise** — go back to drafting with the reviewer's concerns as the
      agenda, then automatically re-run the review (repeat this gate) once
@@ -108,7 +123,10 @@ When the user says the draft is ready:
    the user `/gdo-mvp` is now unblocked.
 
 This revise → re-review cycle repeats automatically (you don't need the user
-to re-invoke the skill each round) up to **5 rounds**. If round 5 still
+to re-invoke the skill each round) up to **5 rounds** — though a round 1
+that surfaces every structural decision at once should converge in about
+two, and if you're heading past three, check whether decisions are being
+surfaced one per round rather than all together. If round 5 still
 hasn't reached an approval, stop looping automatically: tell the user
 plainly that five rounds haven't converged and ask directly whether they
 want to keep iterating, override and approve, or step back and reconsider

@@ -91,7 +91,9 @@ calls to ~5, and more importantly they make the *ordering* unskippable:
 python .claude/scripts/gdo_board.py start  <ID> [--owner NAME] [--no-commit]
 python .claude/scripts/gdo_board.py opened <ID> --pr-url URL
 python .claude/scripts/gdo_board.py land   <ID> [--pr-url URL] [--no-push]
-python .claude/scripts/gdo_board.py finish <ID> [--bug PATH ...] [--no-push]
+python .claude/scripts/gdo_board.py qa-queue [--epic EPIC-NNN] [--json]
+python .claude/scripts/gdo_board.py finish <ID> [<ID> ...] [--bug PATH ...]
+python .claude/scripts/gdo_board.py parallel-batch [--epic EPIC-NNN] [--max N]
 python .claude/scripts/gdo_board.py doctor [--epic EPIC-NNN] [--fix]
 ```
 
@@ -101,8 +103,16 @@ python .claude/scripts/gdo_board.py doctor [--epic EPIC-NNN] [--fix]
 - `land` — guards the branch against `tasks/**` edits, squash-merges,
   `pull --rebase`s, sets `merged`, commits, pushes. Refuses to merge a
   branch that modifies board state, naming the offending files.
-- `finish` — `merged` → `qa` → `done`, committing any bug files QA filed
-  alongside. Clean-QA path only; a regression reopens the ticket instead.
+- `qa-queue` — everything sitting at `merged`, i.e. landed but not yet
+  verified. QA batches over this rather than running once per ticket.
+- `finish` — `merged` → `qa` → `done` for **one or more** IDs, committing
+  any bug files QA filed alongside, in one commit and one push. Clean-QA
+  path only; a regression reopens that ticket instead.
+- `parallel-batch` — ready items with no dependency on each other and no
+  overlapping declared `touches:`, i.e. safe to hand to several implementers
+  at once. It reports which items declared no `touches:` and therefore
+  couldn't be checked — the caller has to judge those from the ticket
+  bodies.
 - `doctor` — reconciles frontmatter against real git/gh state and reports
   anything that drifted. Run it at the start of any resumed run. `--fix`
   resets the one unambiguous case: `in-progress` with no branch and no PR,

@@ -62,8 +62,10 @@ Given an epic ID:
    and not `status: blocked` — that means all three of `tasks/tickets/`,
    `tasks/bugs/`, and `tasks/art/`, not just tickets. If there are none, go
    to *Finishing up*.
-4. Pick one (lowest ID first is fine — no need to be clever about
-   ordering) and resume it at the stage its `status` implies. This mirrors
+4. Pick work and resume it at the stage its `status` implies. For anything
+   already past `backlog`/`ready`, take one item at a time, lowest ID
+   first. For items at `backlog`/`ready`, dispatch a **wave** — see
+   *Dispatching implementers in parallel* below. This mirrors
    `/gdo-implement`, `/gdo-review`, and `/gdo-qa-run` exactly — follow
    those files' actual steps for the stage-specific detail, including their
    own dispatch between `gdo-implementer` and `gdo-artist` depending on
@@ -118,6 +120,43 @@ Given an epic ID:
 6. Keep going until step 3 finds nothing left to work — i.e. every
    ticket/bug under the epic is `done`, `blocked`, or sitting at `merged`
    awaiting a batched QA pass.
+
+## Dispatching implementers in parallel
+
+Implementers are the one stage that parallelizes safely: each runs in its
+own worktree on its own branch, so two of them cannot corrupt each other's
+work. Review, land, and QA all stay serial. The shape is **parallel
+implement, serial land**.
+
+1. `python .claude/scripts/gdo_board.py parallel-batch --epic <EPIC-ID>
+   --max 3 --json` — ready items with no dependency on each other and no
+   overlapping declared `touches:`.
+2. **Narrow it yourself.** The command reports which items declared no
+   `touches:`; it cannot check those. You have their bodies — if two of
+   them plainly rewrite the same file, drop one to a later wave. A merge
+   conflict costs more than the wave you saved.
+3. `start` each item in the wave, one call each. **All of them, before you
+   spawn anything** — worktree isolation forks from committed git state, so
+   a spawn that happens between two `start` calls sees a half-updated
+   board.
+4. Spawn the whole wave's implementers together, each with its own full
+   Brief. They run in the background; you'll be notified as each reports.
+5. As each reports a PR, `opened <ID> --pr-url <URL>` — serial, one at a
+   time, because you are the only writer of `tasks/`.
+6. Review and land them **strictly one at a time**, in whatever order they
+   finished. Never two `land` calls in flight: each one rebases the local
+   checkout against a base the previous one just moved.
+
+**When `land` fails on a merge conflict**, that's the cost this design
+accepts. Don't resolve it yourself in the main checkout — re-spawn that
+item's implementer on its existing branch with a Brief telling it to rebase
+onto the current default branch and push, then land it again. If it fails a
+second time, `blocked` it with the conflict detail and move on; the rest of
+the wave is unaffected.
+
+If a wave keeps producing conflicts, drop `--max` to 1 for the rest of the
+epic and say so in your final report — that's a signal the epic's tickets
+aren't as independent as their `touches:` claim.
 
 ## Batching QA
 
@@ -198,11 +237,11 @@ the detail.
 
 ## Ground rules
 
-- Sequential, not parallel: one ticket's full stage-cycle at a time. Don't
-  spawn implementer/reviewer/QA for multiple tickets concurrently — this
-  keeps git state, PR numbering, and the `tasks/` bookkeeping commits from
-  racing each other. (A future phase may parallelize genuinely independent
-  ready tickets; this one doesn't.)
+- **Parallel implement, serial everything else.** Implementers may be
+  dispatched in waves of up to 3 (see *Dispatching implementers in
+  parallel*). Review, land, and QA run one item at a time, and every
+  `tasks/` write is yours alone — that's what keeps git state, PR
+  numbering, and the bookkeeping commits from racing.
 - Prefer `start`/`opened`/`land`/`finish` over `set-status` plus hand-rolled
   git. They commit `tasks/` changes before a worktree spawn can read stale
   state, and `land` does the post-merge `pull --rebase` in the right place

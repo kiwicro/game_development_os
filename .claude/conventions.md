@@ -43,6 +43,13 @@ epic: EPIC-002
 title: Inventory drag-and-drop
 status: backlog
 depends_on: []          # list of ticket IDs that must be `done` first
+touches: []              # OPTIONAL. Path globs this item is expected to
+                          # modify, e.g. [src/ui/, src/hud/*.gd]. Used only
+                          # by `parallel-batch` to keep two items that would
+                          # rewrite the same files out of the same dispatch
+                          # wave. Omit it and nothing breaks - the item just
+                          # can't be checked mechanically, and the caller is
+                          # told so.
 attempts: 0              # rework count: incremented by a review rejection
                           # OR a QA regression, same counter, cap 3 either way
 pr_url: null

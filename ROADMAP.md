@@ -128,40 +128,59 @@ Landed on `perf/phase-a-foundations` alongside Phase A. Verified by
       reused across spawns. Revisit only if the harness exposes control
       over it.
 
-## Phase C — Parallelism (biggest wall-clock lever, needs A first)
+## Phase C — Parallelism  ✅ DONE
 
 ### C1. Independence check
-- [ ] Given N `ready` tickets, determine which are safe to run concurrently:
-      no shared `depends_on`, disjoint expected file footprints.
-- [ ] Conservative default — when in doubt, serialize.
+- [x] `gdo_board.py parallel-batch [--epic E] [--max N] [--json]`.
+- [x] Optional `touches:` frontmatter — path globs an item expects to
+      modify. Two candidates whose declared footprints intersect go into
+      different waves.
+- [x] Items that declare no `touches:` are reported as **not mechanically
+      checked**, so the caller knows to judge them from the ticket bodies
+      rather than assuming they were cleared.
+- [x] `/gdo-epic` asks for `touches:` when writing tickets, and says
+      plainly that omitting it costs parallelism, not correctness.
+- [x] Correction worth recording: the plan said to check "no shared
+      `depends_on`", but `is_ready` already requires every `depends_on` to
+      be `done`, so two *ready* items can never depend on each other. That
+      check is retained only as a safety net for force-advanced items —
+      `touches:` is what actually does the work here.
 
 ### C2. Parallel implement, serial land
-- [ ] Replace the blanket "sequential, not parallel" rule in
-      `gdo-orchestrator.md` with: fan out 2–3 implementers on independent
-      ready tickets (art tickets parallelize freely with code tickets),
-      then review + merge **one at a time** as reports arrive.
-- [ ] Orchestrator remains the sole writer of `tasks/` — all status commits
-      serialized between dispatch waves.
-- [ ] The merge queue stays strictly serial.
+- [x] Orchestrator dispatches waves of up to 3 implementers; review, land,
+      and QA stay strictly one at a time.
+- [x] All `start` calls complete **before** any spawn — worktree isolation
+      forks from committed state, so spawning between two `start`s shows an
+      agent a half-updated board.
+- [x] Orchestrator remains the sole writer of `tasks/`.
+- [x] Merge-conflict path defined: re-spawn that item's implementer to
+      rebase and push, land again, `blocked` on a second failure — the rest
+      of the wave is unaffected. Repeated conflicts across a wave means
+      dropping `--max` to 1 and saying so in the final report.
 
----
-
-## Phase D — Design gate (independent of A–C, can land anytime)
+## Phase D — Design gate  ✅ DONE
 
 ### D1. Front-load structural questions
-- [ ] Add a required `## Unresolved design decisions` section to
-      `gdo-design-reviewer.md` — exhaustive and ranked: *answer these and I
-      have nothing structural left.*
-- [ ] Round 1 surfaces all of them at once rather than one per round.
+- [x] `gdo-design-reviewer` gains a required `## Unresolved design
+      decisions` section — ranked, each with the choice, the options, and
+      what each would change downstream.
+- [x] It must end that section by stating plainly whether resolving all of
+      them would leave nothing structural outstanding.
+- [x] Round 1 is explicitly told to be exhaustive about decisions: the
+      expensive failure mode is a *serialized* finding, not a wrong one.
+- [x] `/gdo-gdd` presents those decisions to the user as one block rather
+      than one at a time, via `AskUserQuestion` where the options are
+      discrete.
 
 ### D2. Incremental review rounds
-- [ ] `/gdo-gdd` scopes rounds 2+ to "verify these were resolved + only
-      what the edits newly broke" instead of a fresh full critique.
-
-**Target:** 4 rounds → 2, and stops the per-round time climb (53s → 100s as
-the doc grew).
-
----
+- [x] Rounds 2+ get the previous round's findings verbatim plus what
+      changed, and are scoped to verifying those and catching what the
+      edits introduced — not re-deriving a full critique of a document
+      that keeps growing.
+- [x] New `## Prior findings` output section, per-item resolved / NOT
+      resolved.
+- [x] `/gdo-gdd` notes that heading past round 3 is itself a signal that
+      decisions are being surfaced one per round instead of together.
 
 ## Optional — GitHub Issues mirror (visibility, not speed)
 
@@ -176,9 +195,17 @@ Deliberately **not** load-bearing: `gdo_board.py` stays the source of truth.
 
 ## Expected outcome
 
-| | now | after A | after A+B | after A+B+C |
+| | before | after A | after A+B | after A+B+C |
 |---|---|---|---|---|
 | orchestrator calls/ticket | ~20 | ~5 | ~5 | ~5 |
-| sub-agent spawns/ticket | 3 | 3 | ~2 | ~2 |
+| sub-agent spawns/ticket | 3 | 3 | ~2.3 | ~2.3 |
 | rediscovery calls/spawn | ~5 | ~0 | ~0 | ~0 |
-| epic wall-clock | baseline | lower | lower | ~halved on independent tickets |
+| commits/push per QA'd batch of 3 | 3 + 3 | 3 + 3 | 1 + 1 | 1 + 1 |
+| epic wall-clock | baseline | lower | lower | ~halved where tickets are independent |
+
+Phase D is separate: it targets the design gate, where the first run spent
+4 review rounds on what were 4 serialized design decisions. Expected 4 → 2.
+
+**None of this is measured yet.** The numbers above are derived from call
+counts in the rewritten skills, not from a second full run. The honest test
+is running an epic end to end on a real project and comparing.

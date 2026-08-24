@@ -97,6 +97,20 @@ EPIC-NNN to ready? This releases it to autonomous execution via
 part of routine drafting, and never do it for an epic the user hasn't
 reviewed in this session.
 
+## Declaring `touches:` (optional, but it buys parallelism)
+
+When you write a ticket, add a `touches:` list of the path globs you expect
+it to modify — `[src/ui/, src/hud/*.gd]`. It's optional and nothing breaks
+without it, but `gdo_board.py parallel-batch` uses it to keep two tickets
+that would rewrite the same files out of the same dispatch wave, which is
+what lets `/gdo-run` implement several tickets concurrently instead of one
+at a time.
+
+A rough guess is fine and useful; a wrong one costs a merge conflict, not
+correctness. Leave it off entirely when you genuinely can't predict the
+footprint — the orchestrator is told which tickets it couldn't check and
+falls back to reading their bodies.
+
 ## Ground rules
 
 - Never invent acceptance criteria the user hasn't at least implicitly

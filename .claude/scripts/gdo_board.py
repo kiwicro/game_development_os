@@ -28,6 +28,8 @@ spelled out call-by-call in the skills, so the ordering can't be gotten wrong:
   opened <ID> --pr-url URL            -> in-review, PR recorded, committed.
   land <ID>                           Guard branch against tasks/ edits, squash-merge,
                                        rebase-pull, -> merged, commit, push.
+  parallel-batch [--epic E] [--max N] Ready items with no dependency on each other,
+                                       i.e. safe to implement concurrently.
   qa-queue [--epic E] [--json]        Tickets at `merged`, awaiting QA - the batch unit.
   finish <ID> [<ID> ...] [--bug PATH] -> qa -> done for each (+ file QA's bugs),
                                        one commit, one push.
@@ -35,6 +37,7 @@ spelled out call-by-call in the skills, so the ordering can't be gotten wrong:
 """
 
 import argparse
+import fnmatch
 import json
 import re
 import subprocess
@@ -716,6 +719,125 @@ def cmd_land(args):
     return 0
 
 
+def dep_closure(iid, items, _seen=None):
+    """Every id `iid` transitively depends on. Cycle-safe."""
+    if _seen is None:
+        _seen = set()
+    for dep in items.get(iid, {}).get("depends_on") or []:
+        if dep not in _seen:
+            _seen.add(dep)
+            dep_closure(dep, items, _seen)
+    return _seen
+
+
+def footprint(item):
+    """Declared `touches:` globs, or None if the item doesn't declare any."""
+    raw = item.get("touches")
+    if not raw:
+        return None
+    return [str(x).strip() for x in raw if str(x).strip()]
+
+
+def footprints_overlap(a, b):
+    """Do two declared footprints intersect? Prefix/glob comparison, both
+    directions - `src/player/` overlaps `src/player/move.gd`."""
+    for pa in a:
+        for pb in b:
+            na, nb = pa.rstrip("/*"), pb.rstrip("/*")
+            if na == nb or na.startswith(nb + "/") or nb.startswith(na + "/"):
+                return f"{pa} vs {pb}"
+            if fnmatch.fnmatch(na, pb) or fnmatch.fnmatch(nb, pa):
+                return f"{pa} vs {pb}"
+    return None
+
+
+def cmd_parallel_batch(args):
+    """Pick a set of ready items that can be implemented concurrently.
+
+    Implementing in parallel is safe by construction - each implementer gets
+    its own worktree and its own branch, so they cannot corrupt each other.
+    What parallelism actually risks is churn at merge time when two branches
+    rewrite the same files. Landing stays strictly serial regardless; this
+    only decides what to dispatch together.
+
+    Note on dependencies: `is_ready` already requires every `depends_on` to
+    be `done`, so two ready items can't normally depend on each other. The
+    dependency check below is a safety net for items forced past that, not
+    the point of this command.
+
+    The point is `touches:` - an optional frontmatter list of path globs an
+    item is expected to modify. Where two candidates both declare one and
+    they intersect, they're split into different waves. Items that declare
+    nothing can't be checked mechanically, and are reported as such: the
+    caller has the ticket bodies and has to make that call itself."""
+    epics, items = load_all()
+    if args.epic and args.epic not in epics:
+        raise WorkflowError(f"unknown epic {args.epic}")
+
+    candidates = [
+        i for i in sorted(items.values(), key=lambda x: x["id"])
+        if (not args.epic or i.get("epic") == args.epic) and is_ready(i, epics, items)
+    ]
+
+    chosen, deferred, unchecked = [], [], []
+    for item in candidates:
+        if len(chosen) >= args.max:
+            deferred.append((item["id"], f"batch already at --max {args.max}"))
+            continue
+        mine = footprint(item)
+        clash = None
+        for picked in chosen:
+            if picked["id"] in dep_closure(item["id"], items):
+                clash = f"depends on {picked['id']} in this batch"
+                break
+            theirs = footprint(picked)
+            if mine and theirs:
+                overlap = footprints_overlap(mine, theirs)
+                if overlap:
+                    clash = f"touches overlaps {picked['id']} ({overlap})"
+                    break
+        if clash:
+            deferred.append((item["id"], clash))
+            continue
+        chosen.append(item)
+        if not mine:
+            unchecked.append(item["id"])
+
+    if args.json:
+        print(json.dumps({
+            "batch": [
+                {"id": i["id"], "title": i.get("title"), "epic": i.get("epic"),
+                 "path": rel(i["_path"]), "kind": i["_path"].parent.name,
+                 "touches": footprint(i)}
+                for i in chosen
+            ],
+            "deferred": [{"id": i, "reason": r} for i, r in deferred],
+            "no_declared_footprint": unchecked,
+        }))
+        return 0
+
+    if not chosen:
+        print("nothing ready to dispatch")
+        return 0
+    print(f"dispatch together ({len(chosen)}):")
+    for i in chosen:
+        fp = footprint(i)
+        tag = " ".join(fp) if fp else "(no touches: declared)"
+        print(f"  {i['id']:<12} [{i['_path'].parent.name}]  {i.get('title', '')}")
+        print(f"  {'':<12}  {tag}")
+    if deferred:
+        print("\ndeferred to a later wave:")
+        for iid, reason in deferred:
+            print(f"  {iid:<12} {reason}")
+    if unchecked:
+        print(f"\nNOT mechanically checked (no `touches:` declared): "
+              f"{', '.join(unchecked)}")
+        print("Read those ticket bodies before dispatching them together - "
+              "two of them rewriting the same file is a merge conflict this "
+              "command cannot see.")
+    return 0
+
+
 def cmd_qa_queue(args):
     """Tickets sitting at `merged` - i.e. landed but not yet QA'd.
 
@@ -932,6 +1054,12 @@ def main():
     p_land.add_argument("--no-push", action="store_true")
     p_land.add_argument("--force", action="store_true")
     p_land.set_defaults(func=cmd_land)
+
+    p_par = sub.add_parser("parallel-batch", help="ready items safe to dispatch concurrently")
+    p_par.add_argument("--epic", default=None)
+    p_par.add_argument("--max", type=int, default=3)
+    p_par.add_argument("--json", action="store_true")
+    p_par.set_defaults(func=cmd_parallel_batch)
 
     p_qaq = sub.add_parser("qa-queue", help="tickets at `merged`, awaiting QA")
     p_qaq.add_argument("--epic", default=None)

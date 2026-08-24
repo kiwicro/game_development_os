@@ -208,6 +208,45 @@ check "batch finish rejects unknown ID" 1 $?
 grep -q "^status: merged" tasks/tickets/TICKET-007-batch7.md; check "batch aborted before mutating anything" 0 $?
 
 
+echo "--- parallel-batch (Phase C) ---"
+rm -f tasks/tickets/TICKET-00*.md tasks/bugs/BUG-001-oops.md
+mk_par () { # id slug touches
+cat > "tasks/tickets/TICKET-0$1-$2.md" <<EOF
+---
+id: TICKET-0$1
+epic: EPIC-001
+title: Par $1
+status: ready
+depends_on: []
+attempts: 0
+touches: $3
+pr_url: null
+owner_agent: null
+created: 2026-08-24
+---
+x
+EOF
+}
+mk_par 10 ui      "[src/ui/]"
+mk_par 11 uimenu  "[src/ui/menu.gd]"
+mk_par 12 audio   "[src/audio/]"
+mk_par 13 nofp    "[]"
+git add -A >/dev/null; git commit -qm "parallel fixtures"
+
+out=$($B parallel-batch --epic EPIC-001 2>&1); rc=$?
+check "parallel-batch runs" 0 $rc
+echo "$out" | grep -q "TICKET-010"; check "picks the first ready item" 0 $?
+echo "$out" | grep -q "TICKET-011.*touches overlaps TICKET-010"; check "defers overlapping footprint" 0 $?
+echo "$out" | grep -q "TICKET-012"; check "keeps disjoint footprint in batch" 0 $?
+echo "$out" | grep -q "NOT mechanically checked"; check "warns about undeclared footprint" 0 $?
+echo "$out" | grep -q "TICKET-013"; check "names the unchecked item" 0 $?
+
+$B parallel-batch --epic EPIC-001 --max 1 2>&1 | grep -q "already at --max 1"; check "--max caps the batch" 0 $?
+$B parallel-batch --epic EPIC-001 --json 2>/dev/null | grep -q '"no_declared_footprint": \["TICKET-013"\]'; check "parallel-batch --json shape" 0 $?
+$B parallel-batch --epic NOPE-999 >/dev/null 2>&1; check "parallel-batch rejects unknown epic" 1 $?
+$B validate >/dev/null 2>&1; check "touches: does not break validate" 0 $?
+
+
 echo
 echo "$pass passed, $fail failed"
 [ "$fail" = 0 ]

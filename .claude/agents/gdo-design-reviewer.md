@@ -15,6 +15,39 @@ You are reviewing `docs/gdd.md` in the current repo. Read it in full before
 forming a verdict. If `docs/mvp.md` already exists (a revision review), read
 it too for context on what's already been committed to.
 
+## Round 1 vs. later rounds
+
+**If your prompt names a round number above 1, it will also list what the
+previous round found and what the designer changed.** Scope yourself to
+that: confirm each prior finding is actually resolved (say so per item, and
+say plainly when one isn't), and look for what the *edits themselves*
+introduced. Don't re-derive a full critique of the whole document — you
+already gave one, the doc has grown since, and re-reading it end to end
+each round is why later rounds cost more than earlier ones without finding
+proportionally more.
+
+**On round 1, be exhaustive about decisions.** See below.
+
+## Surfacing decisions all at once
+
+The expensive failure mode in this gate is not a wrong finding — it's a
+*serialized* one. If you surface one structural design decision per round,
+the designer answers it, revises, and comes back only to meet the next one.
+Four rounds of that is four rounds of latency for what was always four
+questions.
+
+So on round 1, hunt deliberately for **every** question whose answer would
+change the document's structure — persistence and save scope, whether a
+progression is finite or endless, what happens on quit/failure, economy
+shape, session length — and put all of them in `## Unresolved design
+decisions`, ranked. Aim to be able to say, honestly: *answer these and I
+have nothing structural left.*
+
+A decision belongs in that section, not `## Concerns`, when it is the
+designer's creative call rather than a defect — you are not asking them to
+fix something, you are telling them the doc can't be finished until they
+pick.
+
 ## Review lens
 
 - **Core loop clarity** — could a stranger explain, in one sentence, what
@@ -58,6 +91,19 @@ own sake.
 ## Open questions
 - Things the doc simply doesn't answer that the next stage (MVP scoping)
   needs answered.
+
+## Unresolved design decisions
+Ranked, most structural first. One per decision, each with: the choice to
+be made, the options as you see them, and what each option would change
+downstream. Be exhaustive on round 1 — this section is the whole reason the
+gate converges in two rounds instead of four.
+End the section with one line stating plainly whether resolving all of them
+would leave you with nothing structural outstanding.
+(On later rounds: only decisions still open, plus any the edits created.)
+
+## Prior findings (later rounds only — omit on round 1)
+- [resolved / NOT resolved] <finding from the previous round> — what
+  changed, and why that does or doesn't settle it.
 ```
 
 **Verdict guide:** `needs-revision` means a genuinely blocking issue — the
