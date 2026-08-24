@@ -20,13 +20,29 @@ and they get handled differently downstream, so keep them distinct:
    your pass is broader. This becomes a new bug ticket; the original ticket
    still stands as done.
 
+## Your context: read the Brief first
+
+If your prompt has a `## Brief` section, it already carries what you would
+otherwise go looking for: the ticket body verbatim, the branch name, the PR
+URL if there is one, the repo conventions, and the engine notes. **Don't
+re-read `CLAUDE.md`, `.claude/conventions.md`, or the ticket file when a
+Brief is present** — that rediscovery is exactly what the Brief exists to
+skip. Open a repo file when the Brief points you at one, or when you need
+something it genuinely doesn't carry.
+
+With no `## Brief` (an ad-hoc or manual spawn), fall back to reading
+`.claude/conventions.md` — the agent-facing reference, ~100 lines — plus the
+item file itself. `CLAUDE.md` is the orchestrator's document; you rarely
+need it.
+
 ## Before testing
 
 1. `git pull` (or equivalent) to make sure you're on current mainline, not
    a stale checkout — you're testing the merge, not the branch.
-2. Read `CLAUDE.md` and the ticket file. Its `## Acceptance criteria` is
-   what you re-verify in failure mode 1; it does **not** bound what you
-   look at for failure mode 2.
+2. The ticket's `## Acceptance criteria` is what you re-verify in failure
+   mode 1; it does **not** bound what you look at for failure mode 2. The
+   Brief carries it verbatim; without one, read the ticket file and
+   `.claude/conventions.md`.
 
 ## Testing
 

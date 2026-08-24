@@ -34,104 +34,15 @@ inside this repo, which is the framework's own home) is `/gdo-setup`'s job
 — see that skill for installing the framework into a target project and
 connecting it (git/GitHub, engine detection, optional engine-MCP guidance).
 
-## IDs and filenames
+## Ticket conventions — see `.claude/conventions.md`
 
-`EPIC-NNN`, `TICKET-NNN`, `BUG-NNN`, `ART-NNN` — zero-padded 3-digit,
-monotonically increasing per prefix across the whole `tasks/` tree (don't
-reuse numbers, even across subfolders). Filename is `<ID>-<kebab-slug>.md`,
-e.g. `TICKET-014-inventory-drag-drop.md`. The ID inside the frontmatter is
-the source of truth if filename and frontmatter ever disagree.
+IDs and filenames, the ticket frontmatter schema, the status machine, branch/PR
+conventions, and the ground rules for agents all live in
+`.claude/conventions.md`. They were moved there (not copied) so a sub-agent can
+read the ~100 lines it actually needs instead of this whole file.
 
-`ART-NNN` is functionally identical to `TICKET-NNN` — same frontmatter
-shape, same status machine, same `depends_on` mechanism (a code ticket can
-`depends_on` an art ticket it needs finished first). It's a separate
-prefix/directory purely so a human scanning `tasks/` sees code work and art
-work as distinct piles; the only real difference is which agent implements
-it (`gdo-artist` instead of `gdo-implementer` — decided by which directory
-the item's file lives in, not by anything in its frontmatter).
-
-## Ticket frontmatter schema
-
-Every file in `tasks/tickets/` and `tasks/bugs/` starts with YAML
-frontmatter:
-
-```yaml
----
-id: TICKET-014
-epic: EPIC-002
-title: Inventory drag-and-drop
-status: backlog
-depends_on: []          # list of ticket IDs that must be `done` first
-attempts: 0              # rework count: incremented by a review rejection
-                          # OR a QA regression, same counter, cap 3 either way
-pr_url: null
-owner_agent: null        # set by the orchestrator while a ticket is active
-created: 2026-08-23
----
-```
-
-Body (markdown, free-form but keep these sections):
-
-```markdown
-## Context
-One or two sentences linking back to the GDD/MVP section this implements.
-
-## Acceptance criteria
-- Observable, testable behavior. Not implementation detail.
-- One bullet per criterion; the reviewer and QA agent check against these directly.
-
-## Notes
-Anything else: design constraints, explicitly out of scope, links.
-```
-
-Epics (`tasks/epics/`) use the same frontmatter shape minus `depends_on`/
-`attempts`/`pr_url`/`owner_agent`, plus `status: draft | ready | in-progress
-| done`. An epic's body is the pitch/scope summary; its tickets are the unit
-of execution.
-
-## Status machine (tickets/bugs)
-
-```
-backlog → ready → in-progress → in-review ─┬─→ merged → qa ─┬─→ done
-                        ^                   │                │
-                        │                   └── changes-requested (attempts++, cap 3)
-                        └───────────────────────────────────┘
-                          (qa found the merged change itself doesn't meet
-                           acceptance criteria — reopens for another pass;
-                           an unrelated bug QA finds becomes a new BUG-NNN
-                           instead of reopening this ticket)
-```
-
-`attempts` is one counter shared by both rework paths above — a review
-rejection and a QA regression both increment it, both share the same cap
-of 3. At 3, the ticket goes to `blocked` instead of reopening again; a
-human needs to look at it.
-
-**Rework feedback has to be durable, not just conversational**, since the
-agent that re-does the work may be a fresh spawn with no memory of why it's
-being re-invoked:
-- Review rejections: `gdo-reviewer` posts its findings as a real PR
-  comment (`gh pr comment`), not just in its returned report. A re-invoked
-  implementer reads `gh pr view <pr> --comments` if the feedback isn't
-  already in its prompt.
-- QA regressions: there's no open PR left once something's merged, so
-  whatever reopens the ticket appends a `## QA Regression Notes` section to
-  the ticket file's own body instead.
-
-`blocked` is a side state, enterable from any status, for two reasons only:
-(1) `depends_on` includes a ticket that isn't `done`, or (2) `attempts`
-exhausted its cap without approval. A `blocked`-on-exhausted-attempts ticket
-is what triggers the orchestrator's escalation to the user — it does not
-retry silently past the cap. `blocked` exits to `backlog` (re-triage) or
-`in-progress` (a human resolved the block and work resumes directly).
-
-This machine is enforced in code, not just here — see the next section.
-
-Epics move `draft → ready` only when the user explicitly approves them
-(`/gdo-epic` does this on request, never automatically). `ready` is the
-signal `/gdo-run` treats as "safe to execute autonomously." Nothing in
-`tasks/` should be hand-edited into `ready` without that conversation
-having happened.
+Everything below is the orchestration context around a ticket, which the
+orchestrator and any human working in `tasks/` still need.
 
 ## Design doc gate (docs/gdd.md, docs/mvp.md)
 
@@ -171,6 +82,35 @@ python .claude/scripts/gdo_board.py cycles
 python .claude/scripts/gdo_board.py validate
 ```
 
+**Workflow commands.** Each of these wraps a multi-step git+status sequence
+that used to be spelled out call-by-call in the skills. Prefer them over
+hand-rolling the same steps — they cut a ticket's bookkeeping from ~20 tool
+calls to ~5, and more importantly they make the *ordering* unskippable:
+
+```
+python .claude/scripts/gdo_board.py start  <ID> [--owner NAME] [--no-commit]
+python .claude/scripts/gdo_board.py opened <ID> --pr-url URL
+python .claude/scripts/gdo_board.py land   <ID> [--pr-url URL] [--no-push]
+python .claude/scripts/gdo_board.py finish <ID> [--bug PATH ...] [--no-push]
+python .claude/scripts/gdo_board.py doctor [--epic EPIC-NNN] [--fix]
+```
+
+- `start` — `backlog`/`ready` → `in-progress`, **committed**. Call this
+  immediately before spawning an implementer.
+- `opened` — → `in-review`, recording `pr_url`, committed.
+- `land` — guards the branch against `tasks/**` edits, squash-merges,
+  `pull --rebase`s, sets `merged`, commits, pushes. Refuses to merge a
+  branch that modifies board state, naming the offending files.
+- `finish` — `merged` → `qa` → `done`, committing any bug files QA filed
+  alongside. Clean-QA path only; a regression reopens the ticket instead.
+- `doctor` — reconciles frontmatter against real git/gh state and reports
+  anything that drifted. Run it at the start of any resumed run. `--fix`
+  resets the one unambiguous case: `in-progress` with no branch and no PR,
+  i.e. a session that died between `start` and dispatch.
+
+All of them validate and fail loudly *before* mutating anything, so a failed
+call leaves `tasks/` exactly as it found it.
+
 `board`'s text output leads with a `NEEDS ATTENTION` section (anything
 `blocked`, plus anything at `attempts: 2` — one rejection or regression
 from blocking) before the per-epic detail, so what actually needs a human
@@ -178,38 +118,34 @@ is visible without scanning every ticket; `--json` carries the same thing
 as a top-level `needs_attention` map. Both are computed, not stored — don't
 expect to find a `needs_attention` field in any `tasks/*.md` file.
 
-`set-status` validates the transition against the state machine above and
+`set-status` validates the transition against the state machine in
+`.claude/conventions.md` and
 refuses illegal ones unless `--force` is passed. It only ever rewrites the
 specific frontmatter fields it's told to change — body text and every other
 field are left byte-identical. Run `validate` after any batch of manual
 `tasks/` edits (e.g. right after `/gdo-epic` writes a new epic's tickets).
+
+Two hazards these commands exist to remove — worth knowing about, because
+anything that bypasses `start`/`land` walks straight back into them:
 
 **Commit status transitions before spawning a worktree-isolated agent.**
 `Agent` calls with `isolation: "worktree"` fork from the repo's committed
 git state, not from uncommitted changes sitting in the main working tree —
 confirmed the hard way in Phase 3: a `set-status ... in-progress` call left
 uncommitted locally, then a worktree agent spawned right after, saw the
-ticket as still `backlog`. It didn't matter for the implementer (it doesn't
-read status), but anything that *does* depend on the ticket's status being
-current inside a spawned worktree needs that status change committed (a
-plain local commit is enough — it doesn't need to be pushed) before the
-`Agent` call, not just written to disk.
+ticket as still `backlog`. `start` commits for you, which is the point.
 
-**Pull before pushing a board-state commit right after a merge.** Found in
-Phase 4: `gh pr merge` advances `origin/main` on GitHub independently of
-the local checkout. Committing a ticket's `merged` status locally and
-pushing right after, without a `git pull --rebase origin main` in between,
-gets rejected as non-fast-forward.
+**Pull before pushing a board-state commit right after a merge.** `gh pr
+merge` advances `origin/main` on GitHub independently of the local
+checkout. Committing a ticket's `merged` status locally and pushing right
+after, without a `git pull --rebase origin main` in between, gets rejected
+as non-fast-forward. `land` does the rebase-pull in the right place.
 
-## Branch and PR conventions
-
-- Branch: `ticket/TICKET-NNN-<slug>` (matches the ticket filename slug).
-- Commit messages: reference the ticket ID, e.g. `TICKET-014: add
-  drag-and-drop handlers to inventory slots`.
-- PRs: title mirrors the ticket title, body links back to the ticket file
-  path (not just the ID — the file is the spec) and lists the acceptance
-  criteria as a checklist.
-- Merge strategy: squash merge, delete branch after merge.
+**Only this script writes board state.** An implementer that commits a
+`tasks/` change on its own branch collides with the orchestrator's status
+commit and breaks the squash-merge — this happened in Phase 4 (BUG-002).
+`land`'s guard now rejects such a branch before merging rather than leaving
+it to be discovered as a conflict.
 
 ## Art pipeline
 
@@ -243,18 +179,3 @@ use where it's naturally the right tool — this framework doesn't hard-wire
 any engine-specific tool calls anywhere, agents just use whatever's
 actually in their session.
 
-## Ground rules for agents operating in this repo
-
-- Use `.claude/scripts/gdo_board.py` to read computed state (ready/blocked/
-  cycles) and to change `status`/`pr_url`/`attempts`/`owner_agent`. Direct
-  edits to those fields via `Edit`/`Write` are how the script's own
-  validation gets bypassed by accident.
-- Never flip a ticket or epic to `ready` yourself — that's a human decision.
-- Never hand-wave acceptance criteria as met; the reviewer and QA agent
-  check the actual running behavior, not just that code was written.
-- If a ticket's acceptance criteria are ambiguous or contradict the GDD/MVP,
-  stop and flag it (`status: blocked`, note why) rather than guessing.
-- This framework is engine-agnostic by design — don't assume Unity/Godot/
-  Unreal specifics unless a ticket, or `docs/engine.md`, says so explicitly.
-  Never name a specific MCP tool/package as available unless you've
-  actually verified it's connected in the current session.

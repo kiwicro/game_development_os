@@ -2,7 +2,7 @@
 name: gdo-review
 description: Review an in-review ticket's PR via the gdo-reviewer agent, and drive the revise/re-review loop with gdo-implementer up to the attempt cap - approve and merge on a clean pass, or escalate to the user when attempts run out. Use to process a ticket sitting at in-review.
 user-invocable: true
-allowed-tools: Read, Glob, Bash(python .claude/scripts/gdo_board.py:*), Bash(git add:*), Bash(git commit:*), Bash(gh pr view:*), Bash(gh pr merge:*), Agent, AskUserQuestion
+allowed-tools: Read, Glob, Bash(python .claude/scripts/gdo_board.py:*), Bash(gh pr view:*), Agent, AskUserQuestion
 ---
 
 # /gdo-review — PR Review & Iterate Loop
@@ -28,18 +28,24 @@ Repeat up to **3 rejection cycles** (i.e. up to 3 `REQUEST_CHANGES`
 verdicts before giving up — a 4th attempt is never spawned automatically):
 
 1. **Review.** Spawn the `gdo-reviewer` agent (`Agent` tool,
-   `isolation: "worktree"`) with the ticket ID and `pr_url`. If the custom
-   agent type isn't loaded this session, instruct it to read and follow
-   `.claude/agents/gdo-reviewer.md` directly, same as `/gdo-implement` does
-   for the implementer.
+   `isolation: "worktree"`) with a **`## Brief`** per
+   `.claude/conventions.md` — including the `pr_url` and the ticket body
+   verbatim. If the custom agent type isn't loaded this session, instruct
+   it to read and follow `.claude/agents/gdo-reviewer.md` directly, same as
+   `/gdo-implement` does for the implementer.
 
 2. **APPROVE →** merge and stop:
-   - `gh pr merge <pr-url> --squash --delete-branch`
-   - `git pull --rebase origin main` — the squash-merge just advanced
-     `origin/main` independently of the local checkout; skip this and the
-     next push gets rejected as non-fast-forward.
-   - `python .claude/scripts/gdo_board.py set-status <ID> merged`, then
-     `git add tasks/ && git commit -m "<ID>: merged"`, then `git push`.
+   - `python .claude/scripts/gdo_board.py land <ID>` — one call for the
+     whole sequence: it guards the branch against `tasks/**` edits,
+     squash-merges with `--delete-branch`, `pull --rebase`s (the
+     squash-merge advances `origin/main` independently of the local
+     checkout, so skipping that gets the next push rejected as
+     non-fast-forward), sets `merged`, commits, and pushes.
+   - If `land` **rejects** the branch for modifying `tasks/`, that is a real
+     process violation, not a hiccup — the implementer wrote board state it
+     should not have. Report it to the user rather than forcing past it;
+     `--force` skips the guard and re-opens exactly the merge conflict the
+     guard exists to prevent.
    - Report the merge to the user, including the reviewer's acceptance-
      criteria verification. Mention that `/gdo-qa-run` is the next stage —
      `merged` is as far as this skill itself takes it.
@@ -52,22 +58,23 @@ verdicts before giving up — a 4th attempt is never spawned automatically):
      say plainly that automatic iteration is exhausted; ask how they want
      to proceed (more manual guidance, override and merge anyway, or drop
      the ticket). Do not spawn a 4th implementer attempt on your own.
-   - **Otherwise**: `set-status <ID> in-progress`, commit, then spawn
+   - **Otherwise**: `python .claude/scripts/gdo_board.py start <ID>`
+     (`changes-requested` → `in-progress`, committed), then spawn
      `gdo-implementer` (or `gdo-artist`, if this item lives in
-     `tasks/art/`) (`Agent`, `isolation: "worktree"`) on the **same
-     branch** — tell it explicitly to check out the existing
-     `ticket/<ID>-<slug>` branch from `origin`, not create a new one — and
-     include the reviewer's findings verbatim as the feedback to address.
-     On success, `set-status <ID> in-review`, commit, and go back to step 1
-     for a fresh review pass.
+     `tasks/art/`) (`Agent`, `isolation: "worktree"`) with a `## Brief`
+     whose **Branch** line says the branch already exists on `origin` —
+     check it out and continue, do NOT create a new one — and whose
+     **Feedback to address** section carries the reviewer's findings
+     verbatim. On success, `python .claude/scripts/gdo_board.py opened <ID>
+     --pr-url <same URL>`, then go back to step 1 for a fresh review pass.
 
 ## Ground rules
 
 - Never merge on anything short of a clean `APPROVE`.
 - Never spawn a 4th implementer attempt past the cap without the user
   explicitly asking for it in the moment.
-- Commit every status transition before the next `Agent` spawn — worktree
-  isolation forks from committed git state, not uncommitted working-tree
-  changes (see `CLAUDE.md`).
+- Use `start`/`opened`/`land` rather than `set-status` plus hand-rolled
+  git — they commit at the right moments, which worktree isolation depends
+  on, and `land` gets the merge/rebase/push ordering right.
 - Findings passed to a re-spawned implementer must be the reviewer's actual
   findings, complete — don't summarize them down to a one-liner.

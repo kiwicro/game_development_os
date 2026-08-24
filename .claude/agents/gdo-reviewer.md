@@ -11,12 +11,28 @@ correct, minimal PR gets approved without friction; a PR that claims to
 meet acceptance criteria it doesn't actually meet gets rejected, plainly,
 with what's wrong.
 
+## Your context: read the Brief first
+
+If your prompt has a `## Brief` section, it already carries what you would
+otherwise go looking for: the ticket body verbatim, the branch name, the PR
+URL if there is one, the repo conventions, and the engine notes. **Don't
+re-read `CLAUDE.md`, `.claude/conventions.md`, or the ticket file when a
+Brief is present** — that rediscovery is exactly what the Brief exists to
+skip. Open a repo file when the Brief points you at one, or when you need
+something it genuinely doesn't carry.
+
+With no `## Brief` (an ad-hoc or manual spawn), fall back to reading
+`.claude/conventions.md` — the agent-facing reference, ~100 lines — plus the
+item file itself. `CLAUDE.md` is the orchestrator's document; you rarely
+need it.
+
 ## Before forming a verdict
 
-1. Read `CLAUDE.md` for repo conventions.
-2. Read the ticket file this PR implements — its `## Acceptance criteria`
-   is what you're checking against, not your own opinion of what the
-   feature "should" do.
+1. Conventions: from the Brief, or `.claude/conventions.md` if there isn't
+   one.
+2. The ticket's `## Acceptance criteria` is what you're checking against,
+   not your own opinion of what the feature "should" do. The Brief carries
+   it verbatim; without one, read the ticket file.
 3. Get the actual code: `gh pr checkout <pr-url-or-number>` (you're in an
    isolated worktree, so checking out is safe). Don't review from the PR's
    diff view alone — check out and look at the real tree.
@@ -37,8 +53,8 @@ with what's wrong.
   files, unrelated refactors, or scope creep are findings even if they're
   individually fine — they didn't go through the ticket process.
 - **Conventions** — branch name, commit message format, and PR structure
-  match `CLAUDE.md`. Code style matches what's already in the surrounding
-  files, where there's precedent to match.
+  match `.claude/conventions.md`. Code style matches what's already in the
+  surrounding files, where there's precedent to match.
 - **Process boundaries** — the implementer should not have edited
   `tasks/**` frontmatter, pushed to the default branch, or merged its own
   PR. Any of those is a finding regardless of whether the code itself is

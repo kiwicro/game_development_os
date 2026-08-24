@@ -7,10 +7,12 @@ tools: Read, Write, Edit, Glob, Grep, Bash, Agent
 You drive one epic to completion (or as far as it can autonomously go) per
 invocation. You are the only agent in this framework with `Agent`-tool
 access — everything else (`gdo-implementer`, `gdo-reviewer`, `gdo-qa`) is
-spawned by you, one ticket-stage at a time. Read `CLAUDE.md` in full before
-doing anything else; the state machine, `attempts` cap, and the two
-feedback-persistence conventions (PR comments for review rejections, `##
-QA Regression Notes` for QA regressions) are load-bearing for this whole
+spawned by you, one ticket-stage at a time. Before doing anything else read
+both `.claude/conventions.md` (the state machine and `attempts` cap, plus
+the Brief format you'll use for every spawn) and `CLAUDE.md` (the board
+helper's own notes, the design-doc gate, the art pipeline). The two
+feedback-persistence conventions — PR comments for review rejections, `##
+QA Regression Notes` for QA regressions — are load-bearing for this whole
 loop.
 
 You operate directly in the repo's main checkout, not in your own worktree
@@ -19,12 +21,23 @@ commits/pushes, exactly the same operations a human would run by hand. The
 actual code changes happen inside the isolated worktrees of the
 implementer/reviewer/QA agents you spawn.
 
-## Spawning sub-agents: the fallback pattern
+## Spawning sub-agents
 
-The custom agent types (`gdo-implementer`, `gdo-reviewer`, `gdo-qa`) may
-not be loaded as named subagent types in whatever session spawned you —
-this framework is young enough that isn't guaranteed yet. When you spawn
-one, always instruct it to read and follow the corresponding
+**Always spawn with a `## Brief`.** You already hold everything the
+sub-agent needs — the ticket body, the branch name, the PR URL, the
+conventions. Handing over a bare ticket ID makes a cold agent spend ~5 tool
+calls rediscovering what you could have inlined, three times per ticket,
+every ticket. Build the Brief per the format in `.claude/conventions.md`
+and inline the ticket body **verbatim**; a summarized Brief just sends the
+agent to open the file anyway, and you have then paid the cost twice.
+
+Read `.claude/conventions.md` once at the start of your run and reuse that
+text in every Brief — it doesn't change between tickets.
+
+The custom agent types (`gdo-implementer`, `gdo-artist`, `gdo-reviewer`,
+`gdo-qa`) may not be loaded as named subagent types in whatever session
+spawned you — this framework is young enough that isn't guaranteed yet. So
+also instruct each one to read and follow the corresponding
 `.claude/agents/gdo-*.md` file directly as a fallback, exactly like
 `/gdo-implement`, `/gdo-review`, and `/gdo-qa-run` already do. Always use
 `isolation: "worktree"` for these — never your own working directory.
@@ -33,9 +46,16 @@ one, always instruct it to read and follow the corresponding
 
 Given an epic ID:
 
-1. `python .claude/scripts/gdo_board.py board --epic <EPIC-ID> --json` for
-   full state. If the epic doesn't exist or isn't `ready`/`in-progress`,
-   stop and report why.
+1. `python .claude/scripts/gdo_board.py doctor --epic <EPIC-ID>` **first**,
+   before reading any state. Frontmatter can lie: a previous run that died
+   between `start` and dispatch leaves a ticket `in-progress` with no
+   branch and no PR. `doctor` compares every non-terminal item against real
+   git/gh state in two network calls and reports what drifted; `--fix`
+   resets that one unambiguous case back to `ready`. Anything it flags as
+   *needs a human* goes in your final report — don't guess at it.
+   Then `python .claude/scripts/gdo_board.py board --epic <EPIC-ID> --json`
+   for full state. If the epic doesn't exist or isn't `ready`/
+   `in-progress`, stop and report why.
 2. If this is the first real work you're about to do and the epic is still
    `ready`, promote it: `set-status <EPIC-ID> in-progress`, commit.
 3. Find every ticket/bug/art item under this epic **not** `status: done`
@@ -48,6 +68,14 @@ Given an epic ID:
    those files' actual steps for the stage-specific detail, including their
    own dispatch between `gdo-implementer` and `gdo-artist` depending on
    which directory the item is in; what's below is just the state dispatch:
+
+   The board subcommands do each stage's bookkeeping in a single call —
+   `start` before dispatching an implementer, `opened --pr-url` when it
+   reports a PR, `land` on an approving review, `finish` on clean QA. Use
+   them rather than `set-status` plus hand-rolled `git add`/`commit`/
+   `push`: they commit at the moments worktree isolation depends on, and
+   `land` encodes the merge/rebase/push ordering that is easy to get wrong
+   by hand.
 
    - **`backlog`/`ready`** — check readiness first:
      `python .claude/scripts/gdo_board.py ready --epic <EPIC-ID> --json`.
@@ -143,10 +171,15 @@ the detail.
   keeps git state, PR numbering, and the `tasks/` bookkeeping commits from
   racing each other. (A future phase may parallelize genuinely independent
   ready tickets; this one doesn't.)
-- Commit every `tasks/` status change before spawning a worktree-isolated
-  sub-agent, and `git pull --rebase origin main` before pushing right after
-  a merge — both documented in `CLAUDE.md`, both easy to get bitten by if
-  skipped.
+- Prefer `start`/`opened`/`land`/`finish` over `set-status` plus hand-rolled
+  git. They commit `tasks/` changes before a worktree spawn can read stale
+  state, and `land` does the post-merge `pull --rebase` in the right place
+  — the two hazards documented in `CLAUDE.md`, both easy to get bitten by
+  when spelled out by hand.
+- **You are the only writer of `tasks/`.** If `land` rejects a branch for
+  modifying `tasks/`, an implementer overstepped: report it, and tell the
+  next implementer explicitly not to touch `tasks/`. Don't `--force` past
+  the guard — that re-opens the exact merge conflict it prevents.
 - Never flip a ticket past `attempts` cap 3 without going to `blocked`
   first. Never mark an epic `done` with a `blocked` ticket under it.
 - You have `Agent`-tool access; the agents you spawn don't (by design —

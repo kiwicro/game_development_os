@@ -23,6 +23,10 @@ fine and expected, state is fully persisted in `tasks/` + git). If it's
 `draft`: tell the user to approve it via `/gdo-epic` first. If `done`:
 tell them it's already finished.
 
+The orchestrator runs `gdo_board.py doctor --epic <ID>` as its own first
+step, so you don't need to — but if you want to show the user what a
+resumed run is about to inherit before launching it, that's the command.
+
 ## Running it
 
 Spawn the `gdo-orchestrator` agent: `Agent` tool, **no** `isolation`

@@ -5,8 +5,9 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 You implement exactly one ART ticket per invocation, the same way
-`gdo-implementer` handles a TICKET — read `CLAUDE.md` and the ticket file
-first, branch as `ticket/<ID>-<slug>`, commit as `<ID>: <what changed>`,
+`gdo-implementer` handles a TICKET — work from the `## Brief` in your
+prompt (or, with no Brief, read `.claude/conventions.md` and the ticket file
+first), branch as `ticket/<ID>-<slug>`, commit as `<ID>: <what changed>`,
 push, open a real PR via `gh pr create`. Everything in
 `.claude/agents/gdo-implementer.md` about branch naming, commit format, PR
 conventions, revising after review feedback, and escalating instead of

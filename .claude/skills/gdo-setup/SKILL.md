@@ -109,6 +109,23 @@ either is missing, offer to help set it up the same way: `gh repo create`
 for a new GitHub repo, or `git remote add origin <url>` if the user already
 has one. Confirm `gh` is authenticated before calling this step done.
 
+**Then check the three things that actually block a run.** A repo can pass
+every check above and still stop `/gdo-run` dead on its first ticket — this
+happened on the first real project. "A remote is configured" is not the
+same as "there is anything on it." All three are one command each, and all
+three are fixable in place:
+
+| Check | Command | Why it blocks |
+|---|---|---|
+| Repo has ≥1 commit | `git rev-parse HEAD` | `Agent` calls with `isolation: "worktree"` fork from **committed** git state. With zero commits, every implementer you spawn gets an empty worktree — no GDD, no tickets, no project files. |
+| Remote has ≥1 branch | `git ls-remote --heads origin` | `gh pr create` needs a base branch that exists on the remote. An empty repo on GitHub has none, so the first PR can't be opened at all. |
+| HEAD is pushed | `git status -sb` (look for `ahead`) | Local commits the remote hasn't seen aren't in the PR base. Reviewers and QA then test against a tree that's missing work you think landed. |
+
+Offer to fix each in place rather than just reporting it: `git add -A && git
+commit` for the first, `git push -u origin <branch>` for the other two.
+Don't call this step done with any of the three unresolved — say plainly
+that `/gdo-run` will fail on its first ticket otherwise.
+
 ### 2. Engine detection
 
 `Glob` for markers, in this order (first match wins — a project could
@@ -159,6 +176,11 @@ Run `python .claude/scripts/gdo_board.py validate` — should report a clean,
 empty tree (`OK`, no epics yet). If it errors, something copied wrong;
 diagnose before telling the user setup succeeded.
 
+Then run `python .claude/scripts/gdo_board.py doctor`. On a fresh setup it
+should report `OK` with nothing to reconcile; it's worth running once here
+so the command is known-working before a real run depends on it (it needs
+`gh` authenticated, which is exactly what step 1 just established).
+
 ### 5. Hand off
 
 Tell the user plainly: setup's done, `/gdo-gdd` is the next step whenever
@@ -173,3 +195,7 @@ they're ready to start designing.
   `docs/mvp.md` in a target project — always read first, merge or ask.
 - GitHub is a hard requirement for execution, not a soft recommendation —
   don't imply the framework works without it past the design stage.
+- "Configured" is not "working": a remote that exists but is empty, or a
+  repo with no commits, passes a naive check and still breaks the first
+  ticket. Verify the three blockers in step 1 by running them, not by
+  assuming.

@@ -12,23 +12,27 @@ spawn-reduction and parallelism changes safe.
 
 ---
 
-## Phase A — Foundations (no behavior change, pure call reduction)
+## Phase A — Foundations (no behavior change, pure call reduction)  ✅ DONE
+
+Landed on `perf/phase-a-foundations`. Verified by
+`.claude/scripts/tests/test_workflow.sh` (34 cases, no network) plus
+`gdo_board.py validate`.
 
 ### A1. Collapse the git+status dances into `gdo_board.py` subcommands
-- [ ] `start <ID>` — `backlog→ready→in-progress` (chained), then
+- [x] `start <ID>` — `backlog→ready→in-progress` (chained), then
       `git add tasks/ && git commit -m "<ID>: mark in-progress"`.
       Add `--no-commit` for callers that batch.
-- [ ] `opened <ID> --pr-url URL` — `→in-review` + commit.
-- [ ] `land <ID>` — the full merge dance, in the one correct order:
+- [x] `opened <ID> --pr-url URL` — `→in-review` + commit.
+- [x] `land <ID>` — the full merge dance, in the one correct order:
       1. **Guard:** `git diff --name-only origin/main...ticket/<ID>-<slug> -- tasks/`
          must be empty. If not, exit non-zero listing the offending files —
          this is the BUG-002 collision class, caught *before* the merge.
       2. `gh pr merge <pr_url> --squash --delete-branch`
       3. `git pull --rebase origin main`
       4. `set-status <ID> merged` + commit + push
-- [ ] `finish <ID> [--bug <file>...]` — `merged→qa→done`, file any bug
+- [x] `finish <ID> [--bug <file>...]` — `merged→qa→done`, file any bug
       files, commit, push.
-- [ ] Every subcommand fails loudly and leaves state unchanged on error —
+- [x] Every subcommand fails loudly and leaves state unchanged on error —
       no half-applied transitions.
 
 **Verify:** run each against a scratch repo; `gdo_board.py validate` clean
@@ -36,43 +40,43 @@ afterward. **Payoff:** ~20 bookkeeping calls/ticket → ~5, and the merge
 ordering becomes impossible to get wrong.
 
 ### A2. `gdo_board.py doctor` — reconcile frontmatter against git/gh reality
-- [ ] For every item not `done`/`blocked`: does `ticket/<ID>-*` exist on
+- [x] For every item not `done`/`blocked`: does `ticket/<ID>-*` exist on
       origin? Is there a PR? Does its state match the frontmatter?
-- [ ] Report drift as a table.
-- [ ] `--fix`: reset `in-progress`-with-no-branch-and-no-PR back to `ready`.
-- [ ] Call it at the top of `/gdo-run` on resume.
+- [x] Report drift as a table.
+- [x] `--fix`: reset `in-progress`-with-no-branch-and-no-PR back to `ready`.
+- [x] Call it at the top of `/gdo-run` on resume.
 
 **Replaces:** the manual `git branch` / `git log` audit after each of the
 two session-limit deaths.
 
 ### A3. Split `.claude/conventions.md` out of `CLAUDE.md`
-- [ ] Extract only what sub-agents need: IDs/filenames, ticket frontmatter
+- [x] Extract only what sub-agents need: IDs/filenames, ticket frontmatter
       schema, status machine, branch/PR conventions, ground rules (~60 lines).
-- [ ] `CLAUDE.md` keeps everything and links to it — orchestrator still
+- [x] `CLAUDE.md` keeps everything and links to it — orchestrator still
       reads the full file.
 
 ### A4. Agents accept a brief instead of re-reading everything
-- [ ] Define the `## Brief` block: ticket body verbatim, branch name, PR
+- [x] Define the `## Brief` block: ticket body verbatim, branch name, PR
       URL, conventions, `docs/engine.md` contents.
-- [ ] In `gdo-implementer.md`, `gdo-artist.md`, `gdo-reviewer.md`,
+- [x] In `gdo-implementer.md`, `gdo-artist.md`, `gdo-reviewer.md`,
       `gdo-qa.md`: change "read `CLAUDE.md` in full" to — *if your prompt
       has a `## Brief`, it already carries this; don't re-read. Otherwise
       read `.claude/conventions.md`.*
-- [ ] Keep the fallback path working for manual/ad-hoc spawns.
+- [x] Keep the fallback path working for manual/ad-hoc spawns.
 
 **Payoff:** ~5 rediscovery calls × 3 spawns × N tickets.
 
 ### A5. Rewire callers
-- [ ] `gdo-orchestrator.md` — use A1 subcommands, emit A4 briefs.
-- [ ] `/gdo-implement`, `/gdo-review`, `/gdo-qa-run` — same, so the manual
+- [x] `gdo-orchestrator.md` — use A1 subcommands, emit A4 briefs.
+- [x] `/gdo-implement`, `/gdo-review`, `/gdo-qa-run` — same, so the manual
       path and the autonomous path stay identical.
-- [ ] Update each skill's `allowed-tools` for the new subcommands.
+- [x] Update each skill's `allowed-tools` for the new subcommands.
 
 ### A6. `/gdo-setup` preflight — catch the two hard blockers
-- [ ] Repo has ≥1 commit (`git rev-parse HEAD`).
-- [ ] Remote has at least one branch (`git ls-remote --heads origin`).
-- [ ] Local HEAD is actually pushed (no unpushed ahead-count).
-- [ ] Offer to fix each in place rather than just reporting.
+- [x] Repo has ≥1 commit (`git rev-parse HEAD`).
+- [x] Remote has at least one branch (`git ls-remote --heads origin`).
+- [x] Local HEAD is actually pushed (no unpushed ahead-count).
+- [x] Offer to fix each in place rather than just reporting.
 
 ---
 

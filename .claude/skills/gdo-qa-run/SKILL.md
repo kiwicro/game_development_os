@@ -2,7 +2,7 @@
 name: gdo-qa-run
 description: Run QA against a merged ticket - re-verify its acceptance criteria on mainline, scoped exploratory pass, file new BUG-NNN tickets for anything found outside scope, reopen the ticket if its own criteria regressed. Use to process a ticket sitting at merged.
 user-invocable: true
-allowed-tools: Read, Write, Edit, Glob, Bash(python .claude/scripts/gdo_board.py:*), Bash(git pull:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Agent, AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Bash(python .claude/scripts/gdo_board.py:*), Bash(git add:*), Bash(git commit:*), Agent, AskUserQuestion
 ---
 
 # /gdo-qa-run — Post-Merge QA
@@ -23,17 +23,21 @@ and stop (e.g. `in-review` means `/gdo-review` hasn't approved it yet).
 
 ## Running QA
 
-1. Spawn the `gdo-qa` agent (`Agent` tool, `isolation: "worktree"`) with
-   the ticket ID. If the custom agent type isn't loaded this session,
-   instruct it to read and follow `.claude/agents/gdo-qa.md` directly, same
-   pattern as the other triggers.
+1. Spawn the `gdo-qa` agent (`Agent` tool, `isolation: "worktree"`) with a
+   **`## Brief`** per `.claude/conventions.md` — the ticket body verbatim
+   is what it re-verifies against, so it must be complete. If the custom
+   agent type isn't loaded this session, instruct it to read and follow
+   `.claude/agents/gdo-qa.md` directly, same pattern as the other
+   triggers.
 2. Parse the outcome and act — the four outcomes aren't mutually exclusive
    with the actions below; do all that apply:
 
    Either way, the ticket passes through `qa` first — `merged` only
    transitions to `qa`, never directly to `in-progress` or `done` (see the
-   state machine in `CLAUDE.md`):
-   `python .claude/scripts/gdo_board.py set-status <ID> qa`, commit.
+   state machine in `.claude/conventions.md`). On the **clean** path
+   `finish` does that hop for you (below), so only run
+   `python .claude/scripts/gdo_board.py set-status <ID> qa` + commit
+   explicitly on the regression path.
 
    **If the ticket's own acceptance criteria are NOT MET (regression):**
    - `Edit` the ticket file to append a `## QA Regression Notes` section to
@@ -61,17 +65,21 @@ and stop (e.g. `in-review` means `/gdo-review` hasn't approved it yet).
      `found_in_ticket: <ID>`, and the repro/expected-vs-actual from the
      agent's report in the body, verbatim — don't paraphrase away detail
      someone will need to reproduce it.
-   - `git add tasks/bugs/ && git commit -m "<BUG-ID>: filed by gdo-qa from <ID>"`.
+   - Don't commit it here. On the clean path, `finish --bug <path>` (below)
+     commits the bug files alongside the ticket in one call. On the
+     regression path only, commit them yourself:
+     `git add tasks/bugs/ && git commit -m "<BUG-ID>: filed by gdo-qa from <ID>"`.
 
    **If the ticket's own criteria are met and nothing else was found
    (`clean`), or once the found-but-out-of-scope issues above are filed and
    the ticket's own criteria held:**
-   - `python .claude/scripts/gdo_board.py set-status <ID> done`, commit.
+   - `python .claude/scripts/gdo_board.py finish <ID>` — `merged` → `qa` →
+     `done`, committed and pushed in one call. Pass `--bug <path>` once per
+     bug file you wrote above so they land in the same commit.
 
-3. `git push`. Run `python .claude/scripts/gdo_board.py board --epic
-   <epic>` and show the user the result — any new `BUG-NNN` should now
-   appear, and be `ready-to-start` if the epic is still `ready`/
-   `in-progress`.
+3. Run `python .claude/scripts/gdo_board.py board --epic <epic>` and show
+   the user the result — any new `BUG-NNN` should now appear, and be
+   `ready-to-start` if the epic is still `ready`/`in-progress`.
 
 ## Ground rules
 
