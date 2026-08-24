@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# Exercises the new workflow subcommands against a throwaway git repo.
+# No network: `land` is tested up to and including the tasks/ guard, which is
+# the part that runs before any gh call.
+set -u
+
+# Usage: bash .claude/scripts/tests/test_workflow.sh
+# Builds a throwaway repo in a temp dir; touches nothing in this one.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+SRC="$HERE/../gdo_board.py"
+R="$(mktemp -d)/testrepo"
+trap 'rm -rf "$(dirname "$R")" 2>/dev/null' EXIT
+
+mkdir -p "$R/.claude/scripts" "$R/tasks/epics" "$R/tasks/tickets" "$R/tasks/bugs" "$R/tasks/art"
+cp "$SRC" "$R/.claude/scripts/gdo_board.py"
+B="python .claude/scripts/gdo_board.py"
+
+cat > "$R/tasks/epics/EPIC-001-core.md" <<'EOF'
+---
+id: EPIC-001
+title: Core loop
+status: ready
+created: 2026-08-24
+---
+Pitch.
+EOF
+
+mk_ticket () {
+cat > "$R/tasks/tickets/TICKET-00$1-$2.md" <<EOF
+---
+id: TICKET-00$1
+epic: EPIC-001
+title: Ticket $1
+status: $3
+depends_on: []
+attempts: 0
+pr_url: null
+owner_agent: null
+created: 2026-08-24
+---
+
+## Acceptance criteria
+- does the thing
+EOF
+}
+mk_ticket 1 alpha backlog
+mk_ticket 2 beta  backlog
+mk_ticket 3 gamma in-review
+
+cd "$R" || exit 1
+git init -q -b main 2>/dev/null || { git init -q; git checkout -qb main; }
+git config user.email t@t.t; git config user.name t
+git add -A >/dev/null; git commit -qm init
+
+pass=0; fail=0
+check () { # name expected_rc actual_rc
+  if [ "$2" = "$3" ]; then echo "  PASS  $1"; pass=$((pass+1));
+  else echo "  FAIL  $1 (expected rc=$2 got rc=$3)"; fail=$((fail+1)); fi
+}
+
+echo "--- start ---"
+$B start TICKET-001 >/dev/null 2>&1; check "start backlog->in-progress" 0 $?
+grep -q "^status: in-progress" tasks/tickets/TICKET-001-alpha.md; check "status written" 0 $?
+test -z "$(git status --porcelain)"; check "start committed (clean tree)" 0 $?
+git log -1 --pretty=%s | grep -q "TICKET-001: mark in-progress"; check "commit message" 0 $?
+
+$B start TICKET-001 >/dev/null 2>&1; check "start is idempotent" 0 $?
+$B start TICKET-003 >/dev/null 2>&1; check "start refuses in-review" 1 $?
+$B start TICKET-003 --force >/dev/null 2>&1; check "start --force overrides" 0 $?
+
+echo "--- opened ---"
+$B opened TICKET-001 --pr-url https://x/pr/1 >/dev/null 2>&1; check "opened -> in-review" 0 $?
+grep -q "^pr_url: https://x/pr/1" tasks/tickets/TICKET-001-alpha.md; check "pr_url recorded" 0 $?
+test -z "$(git status --porcelain)"; check "opened committed" 0 $?
+$B opened TICKET-002 --pr-url https://x/pr/2 >/dev/null 2>&1; check "opened refuses backlog" 1 $?
+
+echo "--- land guard ---"
+# Branch that illegally edits tasks/ - the BUG-002 collision class.
+git checkout -qb ticket/TICKET-001-alpha
+sed -i 's/^attempts: 0/attempts: 9/' tasks/tickets/TICKET-001-alpha.md
+git commit -qam "TICKET-001: sneaky board edit"
+git checkout -q main
+out=$($B land TICKET-001 2>&1); rc=$?
+check "land rejects tasks/-modifying branch" 1 $rc
+echo "$out" | grep -q "only gdo_board.py may change board state"; check "guard explains why" 0 $?
+echo "$out" | grep -q "TICKET-001-alpha.md"; check "guard names the file" 0 $?
+grep -q "^status: in-review" tasks/tickets/TICKET-001-alpha.md; check "guard left status unmutated" 0 $?
+
+echo "--- finish ---"
+$B set-status TICKET-001 merged --force >/dev/null 2>&1
+cat > tasks/bugs/BUG-001-oops.md <<'EOF'
+---
+id: BUG-001
+epic: EPIC-001
+title: Oops
+status: backlog
+depends_on: []
+attempts: 0
+pr_url: null
+owner_agent: null
+created: 2026-08-24
+---
+repro
+EOF
+$B finish TICKET-001 --bug tasks/bugs/BUG-001-oops.md --no-push >/dev/null 2>&1
+check "finish merged->qa->done" 0 $?
+grep -q "^status: done" tasks/tickets/TICKET-001-alpha.md; check "ticket is done" 0 $?
+test -z "$(git status --porcelain)"; check "finish committed bug file too" 0 $?
+git log -1 --pretty=%s | grep -q "1 bug filed"; check "commit notes the bug" 0 $?
+$B finish TICKET-002 --no-push >/dev/null 2>&1; check "finish refuses backlog" 1 $?
+
+echo "--- doctor ---"
+$B set-status TICKET-002 ready >/dev/null 2>&1
+$B set-status TICKET-002 in-progress >/dev/null 2>&1
+git commit -qam "board" >/dev/null 2>&1
+out=$($B doctor 2>&1); rc=$?
+check "doctor flags drift" 1 $rc
+echo "$out" | grep -q "TICKET-002"; check "doctor names the dangling ticket" 0 $?
+echo "$out" | grep -q "never actually started"; check "doctor explains drift" 0 $?
+$B doctor --fix >/dev/null 2>&1
+grep -q "^status: ready" tasks/tickets/TICKET-002-beta.md; check "doctor --fix reset to ready" 0 $?
+
+echo "--- regression: existing commands ---"
+$B validate >/dev/null 2>&1; check "validate still passes" 0 $?
+$B board --json >/dev/null 2>&1; check "board --json still works" 0 $?
+$B next-id TICKET >/dev/null 2>&1; check "next-id still works" 0 $?
+$B set-status TICKET-003 done >/dev/null 2>&1; check "set-status still rejects illegal" 1 $?
+
+echo "--- land guard: failure modes ---"
+# A branch with no tasks/ edits must pass the guard and reach the gh call.
+git checkout -q main
+$B set-status TICKET-003 in-review --force >/dev/null 2>&1
+git commit -qam wip >/dev/null 2>&1
+git checkout -qb ticket/TICKET-003-gamma
+echo "code" > game.txt; git add game.txt; git commit -qm "TICKET-003: real code"
+git checkout -q main
+out=$($B land TICKET-003 --pr-url https://x/pr/3 2>&1); rc=$?
+check "clean branch passes guard, fails at gh" 1 $rc
+echo "$out" | grep -q "only gdo_board.py"; check "clean branch NOT flagged by guard" 1 $?
+echo "$out" | grep -q "gh pr merge"; check "reached the merge step" 0 $?
+
+# An unresolvable branch must hard-error, never silently skip the guard.
+$B set-status TICKET-002 in-review --force >/dev/null 2>&1
+git commit -qam wip2 >/dev/null 2>&1
+out=$($B land TICKET-002 --pr-url https://x/pr/2 2>&1); rc=$?
+check "unresolvable branch hard-errors" 1 $rc
+echo "$out" | grep -q "guard cannot run"; check "says why the guard could not run" 0 $?
+echo "$out" | grep -q "gh pr merge"; check "did NOT reach the merge step" 1 $?
+
+
+echo
+echo "$pass passed, $fail failed"
+[ "$fail" = 0 ]

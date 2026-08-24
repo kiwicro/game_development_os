@@ -20,11 +20,21 @@ Commands:
                                        [--force]  (bypass transition validation)
   cycles                              Report dependency cycles among tickets/bugs/art.
   validate                            Sanity-check the whole tasks/ tree.
+
+Workflow commands - each wraps a multi-step git+status sequence that used to be
+spelled out call-by-call in the skills, so the ordering can't be gotten wrong:
+  start <ID>                          backlog/ready -> in-progress, committed.
+  opened <ID> --pr-url URL            -> in-review, PR recorded, committed.
+  land <ID>                           Guard branch against tasks/ edits, squash-merge,
+                                       rebase-pull, -> merged, commit, push.
+  finish <ID> [--bug PATH ...]        -> qa -> done (+ file QA's bugs), commit, push.
+  doctor [--epic E] [--fix]           Reconcile frontmatter against real git/gh state.
 """
 
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -273,44 +283,16 @@ def cmd_ready(args):
 
 
 def cmd_set_status(args):
-    epics, items = load_all()
-    target_id = args.id
-    is_epic = target_id.startswith("EPIC-")
-    store = epics if is_epic else items
-    if target_id not in store:
-        print(f"error: unknown id {target_id}", file=sys.stderr)
+    """Thin CLI wrapper over apply_transition - kept for single, explicit
+    transitions and for anything the workflow commands below don't cover."""
+    try:
+        apply_transition(
+            args.id, args.status, force=args.force,
+            pr_url=args.pr_url, attempts=args.attempts, owner_agent=args.owner,
+        )
+    except WorkflowError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 1
-    item = store[target_id]
-    current = item.get("status")
-    new_status = args.status
-
-    valid_statuses = EPIC_STATUSES if is_epic else TICKET_STATUSES
-    if new_status not in valid_statuses:
-        print(f"error: '{new_status}' is not a valid status for {'an epic' if is_epic else 'a ticket/bug'}", file=sys.stderr)
-        return 1
-
-    if not args.force:
-        if is_epic:
-            allowed = EPIC_TRANSITIONS.get(current, set())
-        else:
-            allowed = TICKET_TRANSITIONS.get(current, set()) | ({"blocked"} if new_status == "blocked" else set())
-        if new_status != current and new_status not in allowed:
-            print(
-                f"error: {target_id} cannot move {current} -> {new_status} "
-                f"(allowed: {sorted(allowed) or '(none)'}). Use --force to override.",
-                file=sys.stderr,
-            )
-            return 1
-
-    set_frontmatter_field(item["_path"], "status", new_status)
-    if args.pr_url is not None:
-        set_frontmatter_field(item["_path"], "pr_url", args.pr_url)
-    if args.attempts is not None:
-        set_frontmatter_field(item["_path"], "attempts", args.attempts)
-    if args.owner is not None:
-        set_frontmatter_field(item["_path"], "owner_agent", args.owner)
-
-    print(f"{target_id}: {current} -> {new_status}")
     return 0
 
 
@@ -493,6 +475,340 @@ def cmd_board(args):
     return 0
 
 
+# ---------------------------------------------------------------------------
+# Workflow commands (start / opened / land / finish / doctor)
+#
+# These wrap the multi-step git+status sequences the skills used to spell out
+# call-by-call. Two reasons they live here rather than in prose:
+#   1. Call count - a ticket's bookkeeping drops from ~20 tool calls to ~5.
+#   2. Ordering - `land` in particular has a sequence (guard, merge, rebase,
+#      commit, push) that is easy to get wrong by hand and was gotten wrong in
+#      practice. Encoding it once makes it unskippable.
+# Every one of them validates and fails loudly *before* mutating anything, so a
+# failed run leaves the tree exactly as it found it.
+# ---------------------------------------------------------------------------
+
+class WorkflowError(Exception):
+    """A precondition failed. Raised before any mutation has happened."""
+
+
+def run(cmd, check=True):
+    proc = subprocess.run(
+        cmd, cwd=str(REPO_ROOT), text=True, capture_output=True,
+        encoding="utf-8", errors="replace",
+    )
+    if check and proc.returncode != 0:
+        detail = ((proc.stdout or "") + (proc.stderr or "")).strip()
+        raise WorkflowError(f"command failed: {' '.join(cmd)}\n{detail}")
+    return proc
+
+
+def default_branch():
+    """origin's default branch - main, master, or whatever this repo uses."""
+    p = run(["git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"], check=False)
+    if p.returncode == 0 and p.stdout.strip():
+        return p.stdout.strip().rsplit("/", 1)[-1]
+    for cand in ("main", "master"):
+        if run(["git", "show-ref", "--verify", "--quiet", f"refs/remotes/origin/{cand}"], check=False).returncode == 0:
+            return cand
+    return run(["git", "rev-parse", "--abbrev-ref", "HEAD"], check=False).stdout.strip() or "main"
+
+
+def branch_for(item):
+    """Branch name per CLAUDE.md: ticket/<ID>-<slug>, matching the filename."""
+    return "ticket/" + item["_path"].stem
+
+
+def resolve_ref(branch):
+    for ref in (f"origin/{branch}", branch):
+        if run(["git", "rev-parse", "--verify", "--quiet", ref + "^{commit}"], check=False).returncode == 0:
+            return ref
+    return None
+
+
+def rel(path):
+    return str(Path(path).resolve().relative_to(REPO_ROOT)).replace("\\", "/")
+
+
+def git_commit(paths, message):
+    """Stage exactly `paths` and commit. No-op (reported) if nothing changed."""
+    paths = list(paths)
+    run(["git", "add", "--"] + paths)
+    if run(["git", "diff", "--cached", "--quiet", "--"] + paths, check=False).returncode == 0:
+        print(f"  nothing to commit for: {message}")
+        return False
+    run(["git", "commit", "-m", message])
+    print(f"  committed: {message}")
+    return True
+
+
+def require_item(items, target_id):
+    if target_id not in items:
+        raise WorkflowError(f"unknown id {target_id}")
+    return items[target_id]
+
+
+def apply_transition(target_id, new_status, force=False, **fields):
+    """Validate one transition against the state machine, then write it.
+
+    Shared by `set-status` and every workflow command below, so there is
+    exactly one implementation of "is this legal"."""
+    epics, items = load_all()
+    is_epic = target_id.startswith("EPIC-")
+    store = epics if is_epic else items
+    if target_id not in store:
+        raise WorkflowError(f"unknown id {target_id}")
+    item = store[target_id]
+    current = item.get("status")
+
+    valid = EPIC_STATUSES if is_epic else TICKET_STATUSES
+    if new_status not in valid:
+        raise WorkflowError(
+            f"'{new_status}' is not a valid status for {'an epic' if is_epic else 'a ticket/bug'}"
+        )
+    if not force and new_status != current:
+        if is_epic:
+            allowed = EPIC_TRANSITIONS.get(current, set())
+        else:
+            allowed = TICKET_TRANSITIONS.get(current, set()) | ({"blocked"} if new_status == "blocked" else set())
+        if new_status not in allowed:
+            raise WorkflowError(
+                f"{target_id} cannot move {current} -> {new_status} "
+                f"(allowed: {sorted(allowed) or '(none)'}). Use --force to override."
+            )
+
+    set_frontmatter_field(item["_path"], "status", new_status)
+    for key, value in fields.items():
+        if value is not None:
+            set_frontmatter_field(item["_path"], key, value)
+    print(f"{target_id}: {current} -> {new_status}")
+    return item, current
+
+
+def cmd_start(args):
+    """backlog/ready -> in-progress, committed.
+
+    Replaces the two set-status calls plus git add/commit that every dispatch
+    used to spell out, and guarantees the commit actually happens - worktree
+    agents fork from committed state, so a skipped commit hands the agent a
+    stale ticket."""
+    _, items = load_all()
+    item = require_item(items, args.id)
+    current = item.get("status")
+    path = rel(item["_path"])
+
+    if current == "in-progress":
+        print(f"{args.id}: already in-progress")
+    elif current == "backlog":
+        apply_transition(args.id, "ready", force=args.force)
+        apply_transition(args.id, "in-progress", force=args.force, owner_agent=args.owner)
+    elif current in ("ready", "changes-requested", "blocked") or args.force:
+        apply_transition(args.id, "in-progress", force=args.force, owner_agent=args.owner)
+    else:
+        raise WorkflowError(
+            f"{args.id} is {current} - `start` expects backlog/ready/changes-requested/blocked. "
+            f"Use --force if this is deliberate rework."
+        )
+
+    if not args.no_commit:
+        git_commit([path], f"{args.id}: mark in-progress")
+    return 0
+
+
+def cmd_opened(args):
+    """in-progress -> in-review, recording the PR URL, committed."""
+    _, items = load_all()
+    item = require_item(items, args.id)
+    if not args.pr_url:
+        raise WorkflowError("--pr-url is required")
+    path = rel(item["_path"])
+    apply_transition(args.id, "in-review", force=args.force, pr_url=args.pr_url)
+    if not args.no_commit:
+        git_commit([path], f"{args.id}: PR opened")
+    return 0
+
+
+def cmd_land(args):
+    """The full merge sequence, in the one order that works.
+
+    The guard runs first, and on failure nothing is merged or written: a branch
+    carrying tasks/** changes is a process violation (only this script moves
+    board state) and merging it collides with the orchestrator's own status
+    commit on the default branch."""
+    _, items = load_all()
+    item = require_item(items, args.id)
+    current = item.get("status")
+    if current != "in-review" and not args.force:
+        raise WorkflowError(f"{args.id} is {current} - `land` expects in-review. Use --force to override.")
+
+    pr = args.pr_url or item.get("pr_url")
+    if not pr:
+        raise WorkflowError(f"{args.id} has no pr_url recorded - pass --pr-url explicitly")
+
+    base = default_branch()
+    branch = branch_for(item)
+    path = rel(item["_path"])
+
+    run(["git", "fetch", "origin", "--prune"], check=False)
+
+    # --- Guard, before anything is merged ---------------------------------
+    # Both refs must actually resolve. A guard that quietly skips itself when
+    # it can't find a ref is worse than no guard - it reports success while
+    # checking nothing - so an unresolvable ref is a hard error unless the
+    # caller explicitly passed --force.
+    base_ref = resolve_ref(base)
+    ref = resolve_ref(branch)
+    if base_ref is None or ref is None:
+        missing = base if base_ref is None else branch
+        if not args.force:
+            raise WorkflowError(
+                f"{args.id}: cannot resolve {missing} locally or on origin, so the tasks/ "
+                f"guard cannot run. Fetch the branch first, or pass --force to merge anyway."
+            )
+        print(f"  warning: --force with {missing} unresolvable - tasks/ guard SKIPPED")
+    else:
+        diff = run(["git", "diff", "--name-only", f"{base_ref}...{ref}", "--", "tasks/"])
+        offenders = [ln for ln in diff.stdout.splitlines() if ln.strip()]
+        if offenders:
+            raise WorkflowError(
+                f"{args.id}: branch {branch} modifies tasks/ - only gdo_board.py may change board state.\n"
+                + "\n".join(f"  {f}" for f in offenders)
+                + "\nRevert those files on the branch (or drop the commit) and re-run `land`."
+            )
+
+    # --- Merge, resync, record --------------------------------------------
+    run(["gh", "pr", "merge", pr, "--squash", "--delete-branch"])
+    print(f"  merged {pr}")
+    run(["git", "pull", "--rebase", "origin", base])
+    apply_transition(args.id, "merged", force=args.force)
+    git_commit([path], f"{args.id}: merged")
+    if not args.no_push:
+        run(["git", "push"])
+        print("  pushed")
+    return 0
+
+
+def cmd_finish(args):
+    """merged -> qa -> done, plus any bug files QA filed, committed and pushed.
+
+    Clean-QA path only. A regression reopens the ticket instead, which the
+    caller does with set-status plus an edit to the ticket body."""
+    _, items = load_all()
+    item = require_item(items, args.id)
+    current = item.get("status")
+    paths = [rel(item["_path"])]
+    for bug_path in args.bug or []:
+        candidate = REPO_ROOT / bug_path
+        if not candidate.exists():
+            raise WorkflowError(f"bug file not found: {bug_path}")
+        paths.append(rel(candidate))
+
+    if current == "merged":
+        apply_transition(args.id, "qa", force=args.force)
+    elif current != "qa":
+        raise WorkflowError(f"{args.id} is {current} - `finish` expects merged or qa")
+    apply_transition(args.id, "done", force=args.force)
+
+    msg = f"{args.id}: QA passed, done"
+    if args.bug:
+        msg += f" (+{len(args.bug)} bug{'s' if len(args.bug) > 1 else ''} filed)"
+    git_commit(paths, msg)
+    if not args.no_push:
+        run(["git", "push"])
+        print("  pushed")
+    return 0
+
+
+def cmd_doctor(args):
+    """Reconcile frontmatter against actual git/gh reality.
+
+    Answers the question every resumed run has: is this ticket's status telling
+    the truth? A session that dies between `start` and dispatch leaves
+    `in-progress` with no branch and no PR - nothing was lost, but the status
+    lies. Two network calls total, regardless of ticket count."""
+    _, items = load_all()
+
+    run(["git", "fetch", "origin", "--prune"], check=False)
+    remote_branches = set()
+    ls = run(["git", "ls-remote", "--heads", "origin"], check=False)
+    for line in ls.stdout.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1].startswith("refs/heads/"):
+            remote_branches.add(parts[1][len("refs/heads/"):])
+
+    prs = {}
+    gh = run(["gh", "pr", "list", "--state", "all", "--limit", "200",
+              "--json", "number,state,url,headRefName"], check=False)
+    if gh.returncode == 0:
+        try:
+            for pr in json.loads(gh.stdout or "[]"):
+                prs[pr["headRefName"]] = pr
+        except (ValueError, KeyError):
+            print("warning: could not parse `gh pr list` output - PR checks skipped")
+    else:
+        print("warning: `gh pr list` failed - PR checks skipped (is gh authenticated?)")
+
+    rows = []
+    for iid, item in sorted(items.items()):
+        status = item.get("status")
+        if status in ("done", "blocked"):
+            continue
+        if args.epic and item.get("epic") != args.epic:
+            continue
+        branch = branch_for(item)
+        has_branch = branch in remote_branches
+        pr = prs.get(branch)
+        drift, fix = None, None
+
+        if status in ("in-progress", "changes-requested") and not has_branch and not pr:
+            drift = "no branch and no PR on origin - never actually started"
+            fix = "ready"
+        elif status == "in-review" and pr and pr["state"] == "MERGED":
+            drift = f"PR #{pr['number']} is already MERGED"
+        elif status == "in-review" and not pr:
+            drift = f"no PR found for branch {branch}"
+        elif status in ("merged", "qa") and pr and pr["state"] == "OPEN":
+            drift = f"PR #{pr['number']} is still OPEN"
+        elif status in ("backlog", "ready") and pr and pr["state"] == "OPEN":
+            drift = f"not started, but PR #{pr['number']} is open for it"
+
+        if drift:
+            rows.append((iid, status, drift, fix))
+
+    if not rows:
+        print("OK - every non-terminal item's status matches git/gh reality")
+        return 0
+
+    print(f"{len(rows)} item(s) drifted from reality:\n")
+    for iid, status, drift, fix in rows:
+        arrow = f"--fix resets to {fix}" if fix else "needs a human"
+        print(f"  {iid:<12} [{status}]  {drift}")
+        print(f"  {'':<12}  -> {arrow}")
+    print()
+
+    if not args.fix:
+        print("Re-run with --fix to reset the auto-fixable ones.")
+        return 1
+
+    fixed = []
+    for iid, status, drift, fix in rows:
+        if not fix:
+            continue
+        # in-progress -> ready is not a legal forward transition; this is a
+        # correction of a status that was never true, so it forces past it.
+        apply_transition(iid, fix, force=True, owner_agent="null")
+        fixed.append(iid)
+    if fixed:
+        _, items = load_all()
+        git_commit([rel(items[i]["_path"]) for i in fixed],
+                   f"doctor: reset {', '.join(fixed)} to ready (no branch, no PR)")
+    unfixed = [r[0] for r in rows if not r[3]]
+    if unfixed:
+        print(f"\nStill needs a human: {', '.join(unfixed)}")
+        return 1
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -526,8 +842,47 @@ def main():
     p_val = sub.add_parser("validate")
     p_val.set_defaults(func=cmd_validate)
 
+    # --- workflow commands ---
+    p_start = sub.add_parser("start", help="backlog/ready -> in-progress, committed")
+    p_start.add_argument("id")
+    p_start.add_argument("--owner", default=None)
+    p_start.add_argument("--no-commit", action="store_true")
+    p_start.add_argument("--force", action="store_true")
+    p_start.set_defaults(func=cmd_start)
+
+    p_open = sub.add_parser("opened", help="-> in-review with a PR URL, committed")
+    p_open.add_argument("id")
+    p_open.add_argument("--pr-url", dest="pr_url", required=True)
+    p_open.add_argument("--no-commit", action="store_true")
+    p_open.add_argument("--force", action="store_true")
+    p_open.set_defaults(func=cmd_opened)
+
+    p_land = sub.add_parser("land", help="guard, squash-merge, rebase-pull, -> merged, push")
+    p_land.add_argument("id")
+    p_land.add_argument("--pr-url", dest="pr_url", default=None)
+    p_land.add_argument("--no-push", action="store_true")
+    p_land.add_argument("--force", action="store_true")
+    p_land.set_defaults(func=cmd_land)
+
+    p_fin = sub.add_parser("finish", help="-> qa -> done, commit QA's bug files, push")
+    p_fin.add_argument("id")
+    p_fin.add_argument("--bug", action="append", default=None,
+                       help="repo-relative path to a bug file QA filed; repeatable")
+    p_fin.add_argument("--no-push", action="store_true")
+    p_fin.add_argument("--force", action="store_true")
+    p_fin.set_defaults(func=cmd_finish)
+
+    p_doc = sub.add_parser("doctor", help="reconcile frontmatter against git/gh reality")
+    p_doc.add_argument("--epic", default=None)
+    p_doc.add_argument("--fix", action="store_true")
+    p_doc.set_defaults(func=cmd_doctor)
+
     args = ap.parse_args()
-    sys.exit(args.func(args))
+    try:
+        sys.exit(args.func(args))
+    except WorkflowError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
