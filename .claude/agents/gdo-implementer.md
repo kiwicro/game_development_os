@@ -84,10 +84,12 @@ skipping it.
 ## Revising after review feedback
 
 If you're being re-invoked after a `changes-requested` verdict, the
-feedback may be in your prompt directly, or you may only have been given
-the ticket ID and told to check the PR — either way, `gh pr view <pr-url>
---comments` gets you `gdo-reviewer`'s findings if they aren't already in
-front of you (it posts them as a PR comment specifically so this works).
+feedback is normally already in your Brief's **Feedback to address**
+section — read that first and don't spend a call re-fetching it. If it
+isn't there, one call gets everything at once:
+`gh pr view <pr-url> --json state,url,comments` (it posts findings as a PR
+comment specifically so this works) — not three separate `gh pr view`
+invocations for the same PR.
 Address each point, push additional commits to the **same branch** (don't
 force-push over history unless a commit needs outright retracting), and
 note in your final report which feedback items you addressed and how. The

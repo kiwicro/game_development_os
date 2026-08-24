@@ -176,6 +176,34 @@ ticket — and the caller already has all of it in context.
  ## QA Regression Notes section - complete, not summarized>
 ```
 
+### The QA variant
+
+`gdo-qa` is normally spawned once for a **batch** of merged tickets, not per
+ticket. Its Brief repeats a block per ticket and adds a **scope** to each:
+
+```
+## Brief
+
+QA pass over 3 tickets merged to `main`.
+
+### TICKET-003 - Player movement   [scope: exploratory-only]
+<ticket body verbatim>
+
+### TICKET-004 - Camera follow   [scope: full]
+<ticket body verbatim>
+
+### ART-002 - Player idle sprite   [scope: full]
+<ticket body verbatim>
+```
+
+`scope` comes from the `qa-scope:` line `land` prints when a ticket merges:
+
+| `land` said | scope | why |
+|---|---|---|
+| `trivial` | `exploratory-only` | Nothing else landed since the branch point, so the merged tree is what `gdo-reviewer` already verified. Re-running those criteria re-derives a known answer. |
+| `NON-TRIVIAL` | `full` | Other work landed underneath it; the merge itself may have broken something no branch review could see. |
+| `UNKNOWN`, or you don't have the line | `full` | Never guess `exploratory-only` to save a spawn - that reports criteria as met that nobody ran. |
+
 Two rules for whoever builds one:
 
 - **Verbatim, not summarized.** A Brief that paraphrases acceptance criteria

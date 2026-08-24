@@ -148,6 +148,66 @@ echo "$out" | grep -q "guard cannot run"; check "says why the guard could not ru
 echo "$out" | grep -q "gh pr merge"; check "did NOT reach the merge step" 1 $?
 
 
+echo "--- qa-queue + batch finish (Phase B) ---"
+# Three tickets landed and awaiting QA; one batched pass should clear them
+# in a single commit rather than three.
+for n in 4 5 6; do
+cat > "tasks/tickets/TICKET-00$n-batch$n.md" <<EOF
+---
+id: TICKET-00$n
+epic: EPIC-001
+title: Batch $n
+status: merged
+depends_on: []
+attempts: 0
+pr_url: https://x/pr/$n
+owner_agent: null
+created: 2026-08-24
+---
+
+## Acceptance criteria
+- does thing $n
+EOF
+done
+git add -A >/dev/null; git commit -qm "three merged tickets"
+
+out=$($B qa-queue --epic EPIC-001 2>&1); rc=$?
+check "qa-queue succeeds" 0 $rc
+echo "$out" | grep -q "3 item(s) awaiting QA"; check "qa-queue counts the merged tickets" 0 $?
+echo "$out" | grep -q "TICKET-005"; check "qa-queue lists them" 0 $?
+$B qa-queue --epic EPIC-001 --json 2>/dev/null | grep -q '"id": "TICKET-006"'; check "qa-queue --json" 0 $?
+
+before=$(git rev-list --count HEAD)
+$B finish TICKET-004 TICKET-005 TICKET-006 --no-push >/dev/null 2>&1
+check "batch finish succeeds" 0 $?
+after=$(git rev-list --count HEAD)
+test "$((after - before))" = "1"; check "batch finish made ONE commit for 3 tickets" 0 $?
+grep -q "^status: done" tasks/tickets/TICKET-004-batch4.md; check "batch: 004 done" 0 $?
+grep -q "^status: done" tasks/tickets/TICKET-006-batch6.md; check "batch: 006 done" 0 $?
+git log -1 --pretty=%s | grep -q "TICKET-004, TICKET-005, TICKET-006"; check "batch commit names all three" 0 $?
+$B qa-queue --epic EPIC-001 2>&1 | grep -q "QA queue empty"; check "qa-queue empty after finish" 0 $?
+
+# A bad ID anywhere in the batch must abort before mutating any of them.
+cat > "tasks/tickets/TICKET-007-batch7.md" <<'EOF'
+---
+id: TICKET-007
+epic: EPIC-001
+title: Batch 7
+status: merged
+depends_on: []
+attempts: 0
+pr_url: null
+owner_agent: null
+created: 2026-08-24
+---
+x
+EOF
+git add -A >/dev/null; git commit -qm "one more"
+$B finish TICKET-007 TICKET-999 --no-push >/dev/null 2>&1
+check "batch finish rejects unknown ID" 1 $?
+grep -q "^status: merged" tasks/tickets/TICKET-007-batch7.md; check "batch aborted before mutating anything" 0 $?
+
+
 echo
 echo "$pass passed, $fail failed"
 [ "$fail" = 0 ]

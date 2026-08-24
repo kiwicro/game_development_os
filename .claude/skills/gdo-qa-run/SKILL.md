@@ -7,9 +7,10 @@ allowed-tools: Read, Write, Edit, Glob, Bash(python .claude/scripts/gdo_board.py
 
 # /gdo-qa-run — Post-Merge QA
 
-Arguments passed: `$ARGUMENTS` — a ticket ID, e.g. `TICKET-003`. (Named
-`gdo-qa-run` rather than `gdo-qa` to keep it visually distinct from the
-`gdo-qa` agent it spawns.)
+Arguments passed: `$ARGUMENTS` — a ticket ID (`TICKET-003`), an epic ID
+(`EPIC-001`) to QA everything of its that has landed, or empty to drain the
+whole queue. (Named `gdo-qa-run` rather than `gdo-qa` to keep it visually
+distinct from the `gdo-qa` agent it spawns.)
 
 This is the manual trigger for the same post-merge QA pass the full
 orchestrator (`/gdo-run`, Phase 6) will run automatically after every
@@ -18,19 +19,39 @@ covers before a ticket is genuinely `done`.
 
 ## Preconditions
 
-Locate the ticket. Require `status: merged`. If it's anything else, say why
-and stop (e.g. `in-review` means `/gdo-review` hasn't approved it yet).
+Run `python .claude/scripts/gdo_board.py qa-queue [--epic <EPIC-ID>] --json`
+to get what's actually awaiting QA — every item at `status: merged`.
+
+- **Given a ticket ID**: it must be in that queue. If it isn't, say why and
+  stop (e.g. `in-review` means `/gdo-review` hasn't approved it yet).
+- **Given an epic ID, or nothing**: QA the whole queue in one pass. This is
+  the normal case and the cheaper one — a single agent spawn covering five
+  merged tickets costs a fraction of five spawns, and the exploratory pass
+  is better for seeing them together, which is how a player meets them.
+
+If the queue is empty, say so and stop.
 
 ## Running QA
 
-1. Spawn the `gdo-qa` agent (`Agent` tool, `isolation: "worktree"`) with a
-   **`## Brief`** per `.claude/conventions.md` — the ticket body verbatim
-   is what it re-verifies against, so it must be complete. If the custom
-   agent type isn't loaded this session, instruct it to read and follow
-   `.claude/agents/gdo-qa.md` directly, same pattern as the other
-   triggers.
-2. Parse the outcome and act — the four outcomes aren't mutually exclusive
-   with the actions below; do all that apply:
+1. Spawn **one** `gdo-qa` agent (`Agent` tool, `isolation: "worktree"`) for
+   the whole queue, with a **`## Brief`** per `.claude/conventions.md`
+   carrying one block per ticket: ID, title, the ticket body verbatim (it's
+   what gets re-verified, so it must be complete), and that ticket's
+   **scope**.
+
+   Scope comes from what `land` printed when the ticket merged: `trivial`
+   → `exploratory-only`, `NON-TRIVIAL` or `UNKNOWN` → `full`. If you don't
+   have that line — a different session merged it, or it scrolled away —
+   use `full`. Guessing `exploratory-only` to save time is how a real
+   regression gets reported as "met" without anyone running it.
+
+   If the custom agent type isn't loaded this session, instruct it to read
+   and follow `.claude/agents/gdo-qa.md` directly, same pattern as the
+   other triggers.
+2. Parse the report and act **per ticket** — the outcomes aren't mutually
+   exclusive, so do all that apply for each one. A regression on one ticket
+   in a batch doesn't hold up the others: clear the clean ones and reopen
+   only what actually regressed.
 
    Either way, the ticket passes through `qa` first — `merged` only
    transitions to `qa`, never directly to `in-progress` or `done` (see the
@@ -73,9 +94,10 @@ and stop (e.g. `in-review` means `/gdo-review` hasn't approved it yet).
    **If the ticket's own criteria are met and nothing else was found
    (`clean`), or once the found-but-out-of-scope issues above are filed and
    the ticket's own criteria held:**
-   - `python .claude/scripts/gdo_board.py finish <ID>` — `merged` → `qa` →
-     `done`, committed and pushed in one call. Pass `--bug <path>` once per
-     bug file you wrote above so they land in the same commit.
+   - `python .claude/scripts/gdo_board.py finish <ID> [<ID> ...]` — takes
+     every clean ticket in the batch at once: `merged` → `qa` → `done` for
+     each, one commit, one push. Pass `--bug <path>` once per bug file you
+     wrote above so they land in that same commit.
 
 3. Run `python .claude/scripts/gdo_board.py board --epic <epic>` and show
    the user the result — any new `BUG-NNN` should now appear, and be

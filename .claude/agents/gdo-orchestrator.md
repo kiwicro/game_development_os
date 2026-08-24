@@ -101,12 +101,14 @@ Given an epic ID:
    - **`changes-requested`** — a partially-completed rework cycle (e.g. you
      were interrupted between review and the fix). Move it to
      `in-progress` (commit) and handle it as the "rework pass" case above.
-   - **`merged`/`qa`** — follow `.claude/skills/gdo-qa-run/SKILL.md`'s
-     steps: `qa` transition, re-verify, file bug tickets for anything found
-     outside scope, reopen to `in-progress` with QA Regression Notes if the
-     ticket's own criteria regressed (respecting the same `attempts` cap —
-     `blocked` instead of reopening once it's exhausted), or `done` if
-     clean.
+   - **`merged`** — **don't QA it yet.** `merged` is a resting state and
+     QA batches; see *Batching QA* below. The one exception: if `land`
+     reported `qa-scope: NON-TRIVIAL` for this ticket, QA it on its own
+     right away — other work landed underneath it, which is precisely the
+     case where the merge itself can break something no branch review could
+     have seen.
+   - **`qa`** — a QA pass was interrupted mid-flight. Re-run it for this
+     ticket individually per `.claude/skills/gdo-qa-run/SKILL.md`.
 
 5. After finishing this ticket's stage transition, go back to step 3 —
    don't assume you know the full remaining set in advance; a stage you
@@ -114,7 +116,29 @@ Given an epic ID:
    and re-reading state each pass is what makes this loop actually correct
    rather than just fast.
 6. Keep going until step 3 finds nothing left to work — i.e. every
-   ticket/bug under the epic is `done` or `blocked`.
+   ticket/bug under the epic is `done`, `blocked`, or sitting at `merged`
+   awaiting a batched QA pass.
+
+## Batching QA
+
+Review happens on the branch; QA happens on mainline. Running QA once per
+ticket means a fresh agent spawn per ticket that mostly re-verifies criteria
+`gdo-reviewer` already verified on a tree that hasn't changed since. Batch
+it instead:
+
+- `python .claude/scripts/gdo_board.py qa-queue --epic <EPIC-ID> --json`
+  is the queue — everything at `merged`.
+- **Drain it when the queue reaches 3, or when nothing else is
+  implementable** (whichever comes first), following
+  `.claude/skills/gdo-qa-run/SKILL.md` — one `gdo-qa` spawn for the whole
+  queue, with each ticket's scope in the Brief.
+- Carry each ticket's `qa-scope` from what `land` printed at merge time. If
+  you no longer have it, use `full`. Never guess `exploratory-only` to save
+  a spawn — that reports criteria as met that nobody ran.
+- Clear the clean ones together with a single
+  `gdo_board.py finish <ID> <ID> ...`; reopen only what actually regressed.
+- The queue **must be empty** before the epic can be `done` — a ticket at
+  `merged` is not finished. *Finishing up* enforces this.
 
 ## Escalating without stopping the whole epic
 
@@ -129,6 +153,14 @@ go — you'll report them all together at the end, not one at a time.
 
 Once nothing remains actionable:
 
+- **Drain the QA queue first.** If `qa-queue --epic <EPIC-ID>` is
+  non-empty, run the batched QA pass now — those tickets have landed but
+  aren't verified, and the epic is not finished while any of them sit at
+  `merged`.
+- `git worktree prune` to deregister the worktrees your sub-agent spawns
+  left behind. Directories that won't delete (a lingering engine or AV file
+  handle holds them) are inert clutter once git has forgotten them — note
+  them for the user rather than fighting them.
 - If every ticket/bug under the epic is `done`: `set-status <EPIC-ID>
   done`, commit, push.
 - If any are `blocked`: leave the epic `in-progress` — it's not finished,

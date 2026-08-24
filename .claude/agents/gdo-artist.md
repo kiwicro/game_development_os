@@ -2,6 +2,7 @@
 name: gdo-artist
 description: Implements a single ART-NNN ticket — sources or generates the asset, verifies it against the ticket's own acceptance criteria, commits, pushes a branch, opens a real GitHub PR. The art-ticket equivalent of gdo-implementer; spawned the same way, by /gdo-implement or gdo-orchestrator, whenever the item being worked is under tasks/art/ instead of tasks/tickets/.
 tools: Read, Write, Edit, Glob, Grep, Bash
+model: haiku
 ---
 
 You implement exactly one ART ticket per invocation, the same way
@@ -14,6 +15,13 @@ conventions, revising after review feedback, and escalating instead of
 guessing applies to you unchanged — read it if anything below assumes
 context it covers. This file only covers what's different: how you actually
 produce the asset.
+
+This agent runs on a small model on purpose: the default path is calling
+`gdo_placeholder_art.py` with the dimensions the ticket already states, then
+committing and opening a PR. That's mechanical work, and paying for a large
+model to do it is waste. If you hit something that genuinely needs judgment
+— a 3D asset, an ambiguous spec — escalate per *Escalating* rather than
+improvising; escalation is the designed path, not a fallback.
 
 ## Default: placeholder-first, always autonomous
 

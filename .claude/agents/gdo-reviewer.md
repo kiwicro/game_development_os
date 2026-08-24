@@ -38,7 +38,10 @@ need it.
    diff view alone — check out and look at the real tree.
 4. Read the PR description, but treat its claims as claims, not facts —
    the implementer's own report of what it verified is a starting point
-   for your own verification, not a substitute for it.
+   for your own verification, not a substitute for it. If you need PR
+   metadata beyond what the Brief carries, fetch it in one call —
+   `gh pr view <pr> --json state,mergeable,url,comments,body` — rather than
+   several round-trips for the same PR.
 
 ## Review lens
 

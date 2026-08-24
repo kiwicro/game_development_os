@@ -80,33 +80,53 @@ two session-limit deaths.
 
 ---
 
-## Phase B — Fewer spawns per ticket
+## Phase B — Fewer spawns per ticket  ✅ DONE
+
+Landed on `perf/phase-a-foundations` alongside Phase A. Verified by
+`.claude/scripts/tests/test_workflow.sh` (46 cases, no network).
 
 ### B1. Conditional QA
-- [ ] After `land`, check whether anything else merged since the branch
-      point. If not, the squashed tree matches the reviewed tree — skip
-      acceptance-criteria re-verification, run only the exploratory pass.
+- [x] `land` computes, **before merging**, how many commits landed on the
+      base since the branch diverged, and prints a `qa-scope:` verdict:
+      `trivial` (nothing landed — the merged tree is what the reviewer
+      already verified), `NON-TRIVIAL` (N commits landed — QA this one
+      individually), or `UNKNOWN`.
+- [x] `gdo-qa` honours a per-ticket `scope` of `full` or `exploratory-only`,
+      and must say so in its report rather than listing criteria it didn't
+      run.
+- [x] Unknown/missing scope degrades to `full`, so losing the signal (a
+      session death, a different session's merge) costs time, never
+      correctness.
 
 ### B2. Batched per-epic QA
-- [ ] One QA spawn per epic (or per 3 merges) covering all merged tickets'
-      criteria plus one broader exploratory sweep, instead of N spawns.
-- [ ] Keep per-ticket QA when the merge was non-trivial (conflict resolved,
-      or another ticket merged in between).
-- [ ] Bug-filing path unchanged — batching finds new bugs just as well.
+- [x] `gdo_board.py qa-queue [--epic E] [--json]` — everything at `merged`.
+- [x] `finish` takes **multiple IDs**: N tickets → one commit, one push.
+      Validates the whole batch before mutating any of it, so a bad ID
+      doesn't leave half the batch transitioned.
+- [x] Orchestrator drains the queue at 3 items or when nothing else is
+      implementable, whichever comes first — and **must** drain it before
+      the epic can go `done`.
+- [x] `NON-TRIVIAL` merges still get their own immediate pass.
+- [x] `/gdo-qa-run` accepts a ticket ID, an epic ID, or nothing (drain all).
 
-### B3. Model per agent (frontmatter `model:`)
-- [ ] `gdo-artist` → haiku (it calls a script).
-- [ ] Keep opus on `gdo-design-reviewer` and `gdo-implementer`.
-- [ ] Measure before fixing the rest.
+### B3. Model per agent
+- [x] `gdo-artist` → `model: haiku`. Its default path is calling
+      `gdo_placeholder_art.py` with dimensions the ticket already states —
+      mechanical work that doesn't need a large model.
+- [x] Left opus on `gdo-design-reviewer` and `gdo-implementer`; measure
+      before touching the rest.
 
 ### B4. Housekeeping
-- [ ] One `gh pr view <n> --json state,mergeable,comments,url` instead of
-      three separate calls.
-- [ ] Reusable review worktree instead of a fresh one per ticket.
-- [ ] `git worktree prune` in the orchestrator's *Finishing up* — the
-      leftover undeletable `.claude/worktrees/agent-*` dirs.
-
----
+- [x] One `gh pr view <n> --json ...` instead of several round-trips, in
+      both `gdo-reviewer` and `gdo-implementer`.
+- [x] `git worktree prune` in the orchestrator's *Finishing up*, with a note
+      that directories which won't delete are inert once git has
+      deregistered them.
+- [ ] ~~Reusable review worktree~~ — **dropped, not implementable here.**
+      Worktrees are created by the `Agent` tool's `isolation: "worktree"`,
+      not by this framework, so nothing in `.claude/` can make one be
+      reused across spawns. Revisit only if the harness exposes control
+      over it.
 
 ## Phase C — Parallelism (biggest wall-clock lever, needs A first)
 

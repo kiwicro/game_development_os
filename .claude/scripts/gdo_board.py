@@ -5,7 +5,8 @@ Game Development OS — task board helper.
 Deterministic reader/writer for the frontmatter in tasks/epics/*.md,
 tasks/tickets/*.md, tasks/bugs/*.md, tasks/art/*.md. Skills and agents
 should shell out to this instead of hand-parsing YAML — it's the single
-place that knows the schema and the status machine defined in CLAUDE.md.
+place that knows the schema and the status machine defined in
+.claude/conventions.md.
 
 No third-party dependencies (stdlib only), so it runs anywhere Python 3.8+
 is available, independent of whatever engine/language the game itself uses.
@@ -27,7 +28,9 @@ spelled out call-by-call in the skills, so the ordering can't be gotten wrong:
   opened <ID> --pr-url URL            -> in-review, PR recorded, committed.
   land <ID>                           Guard branch against tasks/ edits, squash-merge,
                                        rebase-pull, -> merged, commit, push.
-  finish <ID> [--bug PATH ...]        -> qa -> done (+ file QA's bugs), commit, push.
+  qa-queue [--epic E] [--json]        Tickets at `merged`, awaiting QA - the batch unit.
+  finish <ID> [<ID> ...] [--bug PATH] -> qa -> done for each (+ file QA's bugs),
+                                       one commit, one push.
   doctor [--epic E] [--fix]           Reconcile frontmatter against real git/gh state.
 """
 
@@ -676,6 +679,21 @@ def cmd_land(args):
                 + "\nRevert those files on the branch (or drop the commit) and re-run `land`."
             )
 
+    # --- How much did the base move under this branch? --------------------
+    # Decides QA scope downstream. If nothing else landed since the branch
+    # diverged, the squashed tree is what the reviewer already verified, and
+    # re-verifying every acceptance criterion is duplicated work - an
+    # exploratory pass is all that's left to learn. If the base did move, the
+    # merge itself could have broken something the branch review couldn't see,
+    # which is exactly the case per-ticket QA exists for.
+    drift_count = None
+    if base_ref and ref:
+        mb = run(["git", "merge-base", base_ref, ref], check=False)
+        if mb.returncode == 0 and mb.stdout.strip():
+            cnt = run(["git", "rev-list", "--count", f"{mb.stdout.strip()}..{base_ref}"], check=False)
+            if cnt.returncode == 0 and cnt.stdout.strip().isdigit():
+                drift_count = int(cnt.stdout.strip())
+
     # --- Merge, resync, record --------------------------------------------
     run(["gh", "pr", "merge", pr, "--squash", "--delete-branch"])
     print(f"  merged {pr}")
@@ -685,31 +703,82 @@ def cmd_land(args):
     if not args.no_push:
         run(["git", "push"])
         print("  pushed")
+
+    if drift_count is None:
+        print("  qa-scope: UNKNOWN (could not compare against the base) - run a full QA pass")
+    elif drift_count == 0:
+        print("  qa-scope: trivial - nothing else landed since the branch point, so the "
+              "merged tree is what the reviewer verified. Safe to batch this ticket's QA.")
+    else:
+        print(f"  qa-scope: NON-TRIVIAL - {drift_count} commit(s) landed on {base} since the "
+              f"branch point. QA this ticket individually; the merge itself could have "
+              f"broken something the branch review could not see.")
+    return 0
+
+
+def cmd_qa_queue(args):
+    """Tickets sitting at `merged` - i.e. landed but not yet QA'd.
+
+    The batching unit for QA. One agent spawn re-verifying five tickets on the
+    same mainline costs a fraction of five spawns doing it one at a time, and
+    the exploratory pass is actually better for seeing them together."""
+    _, items = load_all()
+    queue = [
+        i for i in sorted(items.values(), key=lambda x: x["id"])
+        if i.get("status") == "merged" and (not args.epic or i.get("epic") == args.epic)
+    ]
+    if args.json:
+        print(json.dumps([
+            {"id": i["id"], "title": i.get("title"), "epic": i.get("epic"),
+             "path": rel(i["_path"]), "pr_url": i.get("pr_url")}
+            for i in queue
+        ]))
+        return 0
+    if not queue:
+        print("QA queue empty - nothing at `merged`")
+        return 0
+    print(f"{len(queue)} item(s) awaiting QA:")
+    for i in queue:
+        print(f"  {i['id']:<12} {i.get('title', '')}")
     return 0
 
 
 def cmd_finish(args):
-    """merged -> qa -> done, plus any bug files QA filed, committed and pushed.
+    """merged -> qa -> done for one or more tickets, plus any bug files QA
+    filed - all in a single commit and a single push.
 
-    Clean-QA path only. A regression reopens the ticket instead, which the
+    Takes several IDs because QA batches: one agent pass over everything
+    sitting at `merged` clears them together, and N tickets should not cost N
+    commits and N pushes to record.
+
+    Clean-QA path only. A regression reopens that ticket instead, which the
     caller does with set-status plus an edit to the ticket body."""
     _, items = load_all()
-    item = require_item(items, args.id)
-    current = item.get("status")
-    paths = [rel(item["_path"])]
+    paths, ids = [], list(args.ids)
+
+    # Validate every ticket before mutating any of them, so a bad ID in the
+    # middle of a batch doesn't leave half the batch transitioned.
+    for tid in ids:
+        item = require_item(items, tid)
+        current = item.get("status")
+        if current not in ("merged", "qa") and not args.force:
+            raise WorkflowError(f"{tid} is {current} - `finish` expects merged or qa")
+        paths.append(rel(item["_path"]))
     for bug_path in args.bug or []:
         candidate = REPO_ROOT / bug_path
         if not candidate.exists():
             raise WorkflowError(f"bug file not found: {bug_path}")
         paths.append(rel(candidate))
 
-    if current == "merged":
-        apply_transition(args.id, "qa", force=args.force)
-    elif current != "qa":
-        raise WorkflowError(f"{args.id} is {current} - `finish` expects merged or qa")
-    apply_transition(args.id, "done", force=args.force)
+    for tid in ids:
+        if items[tid].get("status") == "merged":
+            apply_transition(tid, "qa", force=args.force)
+        apply_transition(tid, "done", force=args.force)
 
-    msg = f"{args.id}: QA passed, done"
+    if len(ids) == 1:
+        msg = f"{ids[0]}: QA passed, done"
+    else:
+        msg = f"QA passed: {', '.join(ids)} done"
     if args.bug:
         msg += f" (+{len(args.bug)} bug{'s' if len(args.bug) > 1 else ''} filed)"
     git_commit(paths, msg)
@@ -864,8 +933,13 @@ def main():
     p_land.add_argument("--force", action="store_true")
     p_land.set_defaults(func=cmd_land)
 
-    p_fin = sub.add_parser("finish", help="-> qa -> done, commit QA's bug files, push")
-    p_fin.add_argument("id")
+    p_qaq = sub.add_parser("qa-queue", help="tickets at `merged`, awaiting QA")
+    p_qaq.add_argument("--epic", default=None)
+    p_qaq.add_argument("--json", action="store_true")
+    p_qaq.set_defaults(func=cmd_qa_queue)
+
+    p_fin = sub.add_parser("finish", help="-> qa -> done for one or more IDs, commit, push")
+    p_fin.add_argument("ids", nargs="+", metavar="ID")
     p_fin.add_argument("--bug", action="append", default=None,
                        help="repo-relative path to a bug file QA filed; repeatable")
     p_fin.add_argument("--no-push", action="store_true")
