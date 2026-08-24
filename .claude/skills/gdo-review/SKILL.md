@@ -28,7 +28,8 @@ Repeat up to **3 rejection cycles** (i.e. up to 3 `REQUEST_CHANGES`
 verdicts before giving up — a 4th attempt is never spawned automatically):
 
 1. **Review.** Spawn the `gdo-reviewer` agent (`Agent` tool,
-   `isolation: "worktree"`) with a **`## Brief`** per
+   `isolation: "worktree"`, **`model: "opus"`** — pass it explicitly, see
+   *Models* in `.claude/conventions.md`) with a **`## Brief`** per
    `.claude/conventions.md` — including the `pr_url` and the ticket body
    verbatim. If the custom agent type isn't loaded this session, instruct
    it to read and follow `.claude/agents/gdo-reviewer.md` directly, same as
@@ -61,7 +62,8 @@ verdicts before giving up — a 4th attempt is never spawned automatically):
    - **Otherwise**: `python .claude/scripts/gdo_board.py start <ID>`
      (`changes-requested` → `in-progress`, committed), then spawn
      `gdo-implementer` (or `gdo-artist`, if this item lives in
-     `tasks/art/`) (`Agent`, `isolation: "worktree"`) with a `## Brief`
+     `tasks/art/`) (`Agent`, `isolation: "worktree"`, `model: "sonnet"` /
+     `model: "haiku"` respectively) with a `## Brief`
      whose **Branch** line says the branch already exists on `origin` —
      check it out and continue, do NOT create a new one — and whose
      **Feedback to address** section carries the reviewer's findings

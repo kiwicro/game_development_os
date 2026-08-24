@@ -39,7 +39,9 @@ full autonomy.
    agent would otherwise read a stale status. Add `--force` only if step
    3's confirmation covered an out-of-sequence case.
 5. Spawn the agent decided in step 2 (`Agent` tool,
-   `isolation: "worktree"`) with a **`## Brief`** built per the format in
+   `isolation: "worktree"`, **`model: "sonnet"`** for `gdo-implementer` /
+   **`model: "haiku"`** for `gdo-artist` — pass it explicitly, see *Models*
+   in `.claude/conventions.md`) with a **`## Brief`** built per the format in
    `.claude/conventions.md` — item ID and file path, epic, branch name, PR
    (none yet), default branch, the ticket body **verbatim**, the contents
    of `.claude/conventions.md`, and `docs/engine.md` if it exists. A Brief

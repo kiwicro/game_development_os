@@ -29,8 +29,9 @@ resumed run is about to inherit before launching it, that's the command.
 
 ## Running it
 
-Spawn the `gdo-orchestrator` agent: `Agent` tool, **no** `isolation`
-parameter (it works directly in the repo's checkout, not a worktree — see
+Spawn the `gdo-orchestrator` agent: `Agent` tool, **`model: "opus"`**
+(pass it explicitly — see *Models* in `.claude/conventions.md`), **no**
+`isolation` parameter (it works directly in the repo's checkout, not a worktree — see
 `.claude/agents/gdo-orchestrator.md` for why). If the custom agent type
 isn't loaded this session, instruct it to read and follow
 `.claude/agents/gdo-orchestrator.md` directly, same fallback pattern as the

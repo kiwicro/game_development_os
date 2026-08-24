@@ -81,8 +81,9 @@ substantive revision after the first review has run.
 When the user says the draft is ready:
 
 1. Set `status: in-review`, save.
-2. Spawn the `gdo-design-reviewer` subagent (fresh context — it should not
-   see this drafting conversation) with a prompt pointing it at
+2. Spawn the `gdo-design-reviewer` subagent (**`model: "opus"`** — pass it
+   explicitly, see *Models* in `.claude/conventions.md`; fresh context, it
+   should not see this drafting conversation) with a prompt pointing it at
    `docs/gdd.md` in this repo and asking it to apply its review lens and
    return its verdict.
 

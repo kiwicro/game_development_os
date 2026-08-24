@@ -33,8 +33,9 @@ If the queue is empty, say so and stop.
 
 ## Running QA
 
-1. Spawn **one** `gdo-qa` agent (`Agent` tool, `isolation: "worktree"`) for
-   the whole queue, with a **`## Brief`** per `.claude/conventions.md`
+1. Spawn **one** `gdo-qa` agent (`Agent` tool, `isolation: "worktree"`,
+   **`model: "opus"`** — pass it explicitly, see *Models* in
+   `.claude/conventions.md`) for the whole queue, with a **`## Brief`** per `.claude/conventions.md`
    carrying one block per ticket: ID, title, the ticket body verbatim (it's
    what gets re-verified, so it must be complete), and that ticket's
    **scope**.
