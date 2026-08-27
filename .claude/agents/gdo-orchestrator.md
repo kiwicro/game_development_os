@@ -214,10 +214,22 @@ Once nothing remains actionable:
   non-empty, run the batched QA pass now — those tickets have landed but
   aren't verified, and the epic is not finished while any of them sit at
   `merged`.
-- `git worktree prune` to deregister the worktrees your sub-agent spawns
-  left behind. Directories that won't delete (a lingering engine or AV file
-  handle holds them) are inert clutter once git has forgotten them — note
-  them for the user rather than fighting them.
+- **If that QA pass filed new `BUG-NNN` tickets, or reopened a ticket to
+  `in-progress` on a regression, go back to step 3 — don't fall through to
+  the done/blocked check below yet.** New bugs land at `backlog`/`ready`
+  exactly like any other ticket, so they dispatch through the same
+  parallel wave as tickets (*Dispatching implementers in parallel*): three
+  bugs found in one QA batch get worked concurrently, not one at a time.
+  Skipping this step is the one way a clean-looking epic quietly leaves
+  freshly-filed bugs sitting untouched at `backlog` until someone re-runs
+  `/gdo-run` by hand.
+- Only once the queue is empty **and** step 3 finds nothing left actionable
+  (which may take more than one lap through the loop and another QA drain,
+  if a bugfix itself needs to be re-verified): `git worktree prune` to
+  deregister the worktrees your sub-agent spawns left behind. Directories
+  that won't delete (a lingering engine or AV file handle holds them) are
+  inert clutter once git has forgotten them — note them for the user
+  rather than fighting them.
 - If every ticket/bug under the epic is `done`: `set-status <EPIC-ID>
   done`, commit, push.
 - If any are `blocked`: leave the epic `in-progress` — it's not finished,
