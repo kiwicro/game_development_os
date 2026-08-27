@@ -115,8 +115,15 @@ python .claude/scripts/gdo_board.py doctor [--epic EPIC-NNN] [--fix]
   bodies.
 - `doctor` — reconciles frontmatter against real git/gh state and reports
   anything that drifted. Run it at the start of any resumed run. `--fix`
-  resets the one unambiguous case: `in-progress` with no branch and no PR,
-  i.e. a session that died between `start` and dispatch.
+  handles every interruption point that's mechanically recoverable: `in-
+  progress` with no branch and no PR resets to `ready` (never actually
+  started); `in-progress` with an open PR but no recorded `pr_url` replays
+  the missing `opened` call (the implementer finished, the bookkeeping
+  didn't); `in-review` with an already-`MERGED` PR replays the rest of
+  `land` (pull, mark `merged`). What's left after `--fix` — a PR in a
+  state that doesn't match its ticket for no interruption-shaped reason —
+  is a real "needs a human" case, not a gap in `doctor`. See *Stopping and
+  resuming a run* below.
 
 All of them validate and fail loudly *before* mutating anything, so a failed
 call leaves `tasks/` exactly as it found it.
@@ -150,6 +157,33 @@ merge` advances `origin/main` on GitHub independently of the local
 checkout. Committing a ticket's `merged` status locally and pushing right
 after, without a `git pull --rebase origin main` in between, gets rejected
 as non-fast-forward. `land` does the rebase-pull in the right place.
+
+## Stopping and resuming a run
+
+`/gdo-run` state lives in `tasks/` + git, not in the orchestrator agent's
+own memory — that's deliberate, and it's what makes "stop now, pick it up
+later" a non-event rather than a feature that needed building. Concretely:
+
+- **To stop a run in progress**, ask the session driving it to `TaskStop`
+  the orchestrator's task. Whatever ticket it was mid-stage on may be left
+  non-terminal (an implementer half done, a PR opened but not yet
+  reviewed) — that's expected, not corruption.
+- **To resume**, just run `/gdo-run <EPIC-ID>` again. It refuses on
+  anything but `ready`/`in-progress`, and `in-progress` is exactly what an
+  interrupted epic sits at — resuming isn't a special mode, it's the only
+  mode. The orchestrator's first move is always `gdo_board.py doctor
+  --epic <ID> --fix`, which reconciles frontmatter against real git/gh
+  state before anything else runs.
+- **What "stop anywhere" actually relies on**: every workflow command
+  (`start`, `opened`, `land`, `finish`) commits its status change
+  immediately, before the next network call or spawn — so the worst a kill
+  can do is leave a ticket's status one step behind reality, never leave
+  `tasks/` internally inconsistent. `doctor --fix` closes that one-step gap
+  for every interruption point that has a mechanical answer (see the
+  `doctor` bullet above). What it can't fix — a PR state that doesn't
+  match its ticket for no interruption-shaped reason — is worth a human
+  look precisely because it means something other than "got stopped"
+  happened.
 
 **Only this script writes board state.** An implementer that commits a
 `tasks/` change on its own branch collides with the orchestrator's status

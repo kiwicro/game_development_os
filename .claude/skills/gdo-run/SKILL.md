@@ -23,9 +23,10 @@ fine and expected, state is fully persisted in `tasks/` + git). If it's
 `draft`: tell the user to approve it via `/gdo-epic` first. If `done`:
 tell them it's already finished.
 
-The orchestrator runs `gdo_board.py doctor --epic <ID>` as its own first
-step, so you don't need to — but if you want to show the user what a
-resumed run is about to inherit before launching it, that's the command.
+The orchestrator runs `gdo_board.py doctor --epic <ID> --fix` as its own
+first step, so you don't need to — but if you want to show the user what a
+resumed run is about to inherit before launching it, drop `--fix` and show
+them the dry-run output instead.
 
 ## Running it
 
@@ -62,9 +63,12 @@ picture.
   state.
 - If the user asks to stop a run that's already in progress, use `TaskStop`
   with the orchestrator's task ID to actually terminate it — don't just
-  say you can't. Be clear afterward about the risk: whatever ticket it was
-  mid-stage on when stopped may be left in a non-terminal status (e.g.
-  `in-progress` with a half-finished implementation, or an open PR that was
-  never reviewed) — check `/gdo-board` for that epic afterward and decide
-  by hand whether to resume via the single-ticket skills, `/gdo-run` again,
-  or clean it up manually.
+  say you can't. Be clear afterward that whatever ticket it was mid-stage
+  on when stopped may be left non-terminal (e.g. `in-progress` with a
+  half-finished implementation, or an open PR that was never reviewed) —
+  that's expected, not corruption, and it's not something to fix by hand.
+  Resuming is just `/gdo-run <EPIC-ID>` again: `doctor --fix` reconciles
+  every mechanically-recoverable interruption point automatically as the
+  orchestrator's first move (see `CLAUDE.md`'s *Stopping and resuming a
+  run*). `/gdo-board` is there if the user wants to see state before
+  resuming, not because resuming needs a manual decision first.

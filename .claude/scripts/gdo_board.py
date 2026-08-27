@@ -913,10 +913,13 @@ def cmd_finish(args):
 def cmd_doctor(args):
     """Reconcile frontmatter against actual git/gh reality.
 
-    Answers the question every resumed run has: is this ticket's status telling
-    the truth? A session that dies between `start` and dispatch leaves
-    `in-progress` with no branch and no PR - nothing was lost, but the status
-    lies. Two network calls total, regardless of ticket count."""
+    Answers the question every resumed run has: is this ticket's status
+    telling the truth? A killed/crashed orchestrator can leave status one
+    step behind reality at any of several points - between `start` and
+    dispatch, between an implementer's PR and the `opened` call, between
+    `land`'s merge and its own status write - and `--fix` replays whichever
+    bookkeeping step didn't finish, for all of them. Two network calls
+    total, regardless of ticket count."""
     _, items = load_all()
 
     run(["git", "fetch", "origin", "--prune"], check=False)
@@ -951,11 +954,22 @@ def cmd_doctor(args):
         pr = prs.get(branch)
         drift, fix = None, None
 
+        # Each `fix` is (kind, data) so the fix-up pass below knows which
+        # bookkeeping to replay, not just which status to force. These are
+        # the interruption points a killed/crashed orchestrator can leave
+        # behind - see `Stopping and resuming a run` in CLAUDE.md.
         if status in ("in-progress", "changes-requested") and not has_branch and not pr:
             drift = "no branch and no PR on origin - never actually started"
-            fix = "ready"
+            fix = ("reset_ready", None)
+        elif status == "in-progress" and not item.get("pr_url") and pr and pr["state"] == "OPEN":
+            drift = (f"PR #{pr['number']} is open for this branch but was never recorded "
+                     f"(pr_url is null) - the implementer likely finished and opened it, but "
+                     f"the orchestrator's `opened` bookkeeping never ran")
+            fix = ("resume_in_review", pr["url"])
         elif status == "in-review" and pr and pr["state"] == "MERGED":
-            drift = f"PR #{pr['number']} is already MERGED"
+            drift = (f"PR #{pr['number']} is already MERGED, but status is still in-review - "
+                     f"`land` merged it and died before recording the merge")
+            fix = ("resume_merged", None)
         elif status == "in-review" and not pr:
             drift = f"no PR found for branch {branch}"
         elif status in ("merged", "qa") and pr and pr["state"] == "OPEN":
@@ -971,8 +985,15 @@ def cmd_doctor(args):
         return 0
 
     print(f"{len(rows)} item(s) drifted from reality:\n")
+    fix_descriptions = {
+        "reset_ready": "--fix resets to ready",
+        "resume_in_review": "--fix records the PR and moves to in-review",
+        "resume_merged": "--fix completes the merge bookkeeping (pull --rebase, mark merged; "
+                          "QA this one as scope full - the branch is gone, so drift can't be "
+                          "recomputed)",
+    }
     for iid, status, drift, fix in rows:
-        arrow = f"--fix resets to {fix}" if fix else "needs a human"
+        arrow = fix_descriptions[fix[0]] if fix else "needs a human"
         print(f"  {iid:<12} [{status}]  {drift}")
         print(f"  {'':<12}  -> {arrow}")
     print()
@@ -981,18 +1002,33 @@ def cmd_doctor(args):
         print("Re-run with --fix to reset the auto-fixable ones.")
         return 1
 
+    fixable = [(iid, fix) for iid, status, drift, fix in rows if fix]
+
+    # `resume_merged` needs the just-completed squash-merge pulled in
+    # locally before anything commits on top of it - same ordering `land`
+    # itself uses, and for the same reason: skipping it gets the next push
+    # rejected as non-fast-forward.
+    if any(kind == "resume_merged" for _, (kind, _) in fixable):
+        run(["git", "pull", "--rebase", "origin", default_branch()])
+
     fixed = []
-    for iid, status, drift, fix in rows:
-        if not fix:
-            continue
-        # in-progress -> ready is not a legal forward transition; this is a
-        # correction of a status that was never true, so it forces past it.
-        apply_transition(iid, fix, force=True, owner_agent="null")
-        fixed.append(iid)
+    for iid, (kind, data) in fixable:
+        if kind == "reset_ready":
+            # in-progress -> ready is not a legal forward transition; this is
+            # a correction of a status that was never true, so it forces
+            # past it.
+            apply_transition(iid, "ready", force=True, owner_agent="null")
+        elif kind == "resume_in_review":
+            apply_transition(iid, "in-review", force=True, pr_url=data)
+        elif kind == "resume_merged":
+            apply_transition(iid, "merged", force=True)
+        fixed.append((iid, kind))
+
     if fixed:
         _, items = load_all()
-        git_commit([rel(items[i]["_path"]) for i in fixed],
-                   f"doctor: reset {', '.join(fixed)} to ready (no branch, no PR)")
+        summary = ", ".join(f"{i} ({k})" for i, k in fixed)
+        git_commit([rel(items[i]["_path"]) for i, _ in fixed], f"doctor: {summary}")
+
     unfixed = [r[0] for r in rows if not r[3]]
     if unfixed:
         print(f"\nStill needs a human: {', '.join(unfixed)}")

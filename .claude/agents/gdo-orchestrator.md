@@ -61,13 +61,16 @@ work as unverified and say so in your final report.
 
 Given an epic ID:
 
-1. `python .claude/scripts/gdo_board.py doctor --epic <EPIC-ID>` **first**,
-   before reading any state. Frontmatter can lie: a previous run that died
-   between `start` and dispatch leaves a ticket `in-progress` with no
-   branch and no PR. `doctor` compares every non-terminal item against real
-   git/gh state in two network calls and reports what drifted; `--fix`
-   resets that one unambiguous case back to `ready`. Anything it flags as
-   *needs a human* goes in your final report — don't guess at it.
+1. `python .claude/scripts/gdo_board.py doctor --epic <EPIC-ID> --fix`
+   **first**, before reading any state. Frontmatter can lie after a killed
+   or crashed run: a ticket can be `in-progress` with no branch and no PR
+   (never actually started), `in-progress` with an open PR nobody recorded
+   (the implementer finished, the `opened` bookkeeping didn't), or
+   `in-review` with a PR that's already `MERGED` (`land` merged it and died
+   before recording the merge). `doctor --fix` replays the missing
+   bookkeeping for all three in one pass — see `CLAUDE.md`'s *Stopping and
+   resuming a run*. Anything it still flags as *needs a human* afterward
+   goes in your final report — don't guess at it.
    Then `python .claude/scripts/gdo_board.py board --epic <EPIC-ID> --json`
    for full state. If the epic doesn't exist or isn't `ready`/
    `in-progress`, stop and report why.
