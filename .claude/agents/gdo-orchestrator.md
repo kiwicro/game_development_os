@@ -144,12 +144,14 @@ Given an epic ID:
 
 Implementers and reviewers are both stages that parallelize safely.
 Implementers each run in their own worktree on their own branch, so two of
-them cannot corrupt each other's work. Reviewers are read-only and isolated
-the same way — a reviewer never writes `tasks/` or pushes anything, so
-several can check out different PRs and verify them at the same time
-without touching each other. `land` is the actual bottleneck: it's the one
-step that mutates shared state (merges, rebases the local checkout, writes
-`tasks/`), so it — and only it — has to happen one at a time. The shape is
+them cannot corrupt each other's work. Reviewers are isolated the same
+way, and never write the code under review, `tasks/`, or push anything
+(their only file-write is a throwaway scratch file for verification, kept
+inside their own worktree) — so several can check out different PRs and
+verify them at the same time without touching each other. `land` is the
+actual bottleneck: it's the one step that mutates shared state (merges,
+rebases the local checkout, writes `tasks/`), so it — and only it — has to
+happen one at a time. The shape is
 **parallel implement, parallel review, serial land**.
 
 1. `python .claude/scripts/gdo_board.py parallel-batch --epic <EPIC-ID>

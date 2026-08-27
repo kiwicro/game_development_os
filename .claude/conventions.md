@@ -166,6 +166,35 @@ the canonical table; every caller (`gdo-orchestrator`, `/gdo-run`,
   actually verified it's connected in the current session.
 
 
+## Worktree isolation: keep Bash commands simple
+
+Every implementer/artist/reviewer/QA spawn runs `isolation: "worktree"`,
+which layers a safety check over every `Bash` call: it has to statically
+confirm a command can't touch anything outside that worktree. A command it
+can't parse with confidence is refused outright — "too complex to
+verify" — rather than risk running something unverifiable. This is a
+harness guarantee, not a bug to route around with a cleverer one-liner.
+
+What trips it, and what to do instead:
+
+- **No chaining.** `cd ... && mkdir ... && git commit ...` is one refused
+  command; three plain, separate `Bash` calls are three that run. Split
+  every `&&`/`;` sequence into individual calls.
+- **No `cd`.** You already start inside your own worktree — you don't need
+  to `cd` there, and doing so as the first link in a chain is exactly the
+  shape that gets refused. If a command needs a different directory,
+  that's what its own path argument is for.
+- **No heredocs or command substitution for file content.** `cat > file
+  <<EOF ... EOF` and `--body "$(cat <<EOF ... EOF)"` are both unverifiable
+  as a single command. Use the `Write` tool to create a file, where your
+  tool grant includes it. For a multi-line `gh pr create`/`gh pr comment`
+  body, `Write` the text to a plain file first, then pass
+  `--body-file <path>` — both commands support it natively, no
+  substitution required.
+- **If a command is refused for being "too complex," don't retry a
+  fancier variant of the same thing.** Split it into the plain steps above
+  and run those instead.
+
 ## The Brief — how a sub-agent gets its context
 
 A spawning caller (the orchestrator, or `/gdo-implement` etc.) should inline
