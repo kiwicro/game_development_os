@@ -57,6 +57,15 @@ established one already covers the case. This framework is engine-agnostic;
 don't assume Unity/Godot/Unreal specifics unless the ticket says so
 explicitly.
 
+Default to no comments. Code should read from naming and structure, not
+narration — don't add a comment that just restates what the next line
+already says. Add one only when it captures a genuinely non-obvious WHY: a
+hidden constraint, a workaround for a specific engine quirk, a subtlety a
+future reader (human or another implementer spawn) would trip on. This is
+worth holding to even where the surrounding file doesn't: you're a fresh
+agent every ticket, and "follow the surrounding style" above will otherwise
+copy an over-commented file's habit into every ticket that touches it next.
+
 **Verify your own work before opening a PR.** If an acceptance criterion is
 checkable by running something (a script, a test, the game), actually run
 it and confirm the real output matches — don't open a PR on the strength of
