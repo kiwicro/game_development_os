@@ -114,7 +114,12 @@ Given an epic ID:
      loop: review, and on `REQUEST_CHANGES`, that skill's own steps handle
      incrementing `attempts`, capping at 3, and re-spawning the
      implementer — do all of that here exactly as written there, don't
-     stop after just the first review pass.
+     stop after just the first review pass. **If more than one item is at
+     `in-review` at once** (a wave that just finished implementing, or
+     several left over from an interrupted run), review them concurrently
+     rather than one at a time — see *Dispatching implementers in
+     parallel*, which covers review the same way it covers implement. Only
+     `land` has to happen strictly one at a time.
    - **`changes-requested`** — a partially-completed rework cycle (e.g. you
      were interrupted between review and the fix). Move it to
      `in-progress` (commit) and handle it as the "rework pass" case above.
@@ -137,10 +142,15 @@ Given an epic ID:
 
 ## Dispatching implementers in parallel
 
-Implementers are the one stage that parallelizes safely: each runs in its
-own worktree on its own branch, so two of them cannot corrupt each other's
-work. Review, land, and QA all stay serial. The shape is **parallel
-implement, serial land**.
+Implementers and reviewers are both stages that parallelize safely.
+Implementers each run in their own worktree on their own branch, so two of
+them cannot corrupt each other's work. Reviewers are read-only and isolated
+the same way — a reviewer never writes `tasks/` or pushes anything, so
+several can check out different PRs and verify them at the same time
+without touching each other. `land` is the actual bottleneck: it's the one
+step that mutates shared state (merges, rebases the local checkout, writes
+`tasks/`), so it — and only it — has to happen one at a time. The shape is
+**parallel implement, parallel review, serial land**.
 
 1. `python .claude/scripts/gdo_board.py parallel-batch --epic <EPIC-ID>
    --max 3 --json` — ready items with no dependency on each other and no
@@ -156,10 +166,19 @@ implement, serial land**.
 4. Spawn the whole wave's implementers together, each with its own full
    Brief. They run in the background; you'll be notified as each reports.
 5. As each reports a PR, `opened <ID> --pr-url <URL>` — serial, one at a
-   time, because you are the only writer of `tasks/`.
-6. Review and land them **strictly one at a time**, in whatever order they
-   finished. Never two `land` calls in flight: each one rebases the local
-   checkout against a base the previous one just moved.
+   time, because you are the only writer of `tasks/`. Then spawn that
+   ticket's `gdo-reviewer` right away — don't wait for the rest of the wave
+   to finish implementing first, and don't wait for one review to finish
+   before starting the next. Reviews stack up in the background exactly
+   like implementers did; you'll be notified as each verdict comes in.
+6. **Land strictly one at a time**, in whatever order reviews come back
+   `APPROVE`. Never two `land` calls in flight: each one rebases the local
+   checkout against a base the previous one just moved. On
+   `REQUEST_CHANGES`, don't wait for the rest of the wave's reviews to
+   land first — re-spawn that ticket's implementer for rework immediately;
+   rework spawns are just implementers on an existing branch, so they
+   parallelize with everything else in flight the same way the original
+   wave did.
 
 **When `land` fails on a merge conflict**, that's the cost this design
 accepts. Don't resolve it yourself in the main checkout — re-spawn that
@@ -267,11 +286,13 @@ the detail.
 
 ## Ground rules
 
-- **Parallel implement, serial everything else.** Implementers may be
-  dispatched in waves of up to 3 (see *Dispatching implementers in
-  parallel*). Review, land, and QA run one item at a time, and every
-  `tasks/` write is yours alone — that's what keeps git state, PR
-  numbering, and the bookkeeping commits from racing.
+- **Parallel implement and review; serial land and QA.** Implementers and
+  reviewers may both run several at once — see *Dispatching implementers
+  in parallel*, which covers both. `land` runs one item at a time, and
+  every `tasks/` write is yours alone — that's what keeps git state, PR
+  numbering, and the bookkeeping commits from racing. QA is a single
+  batched spawn already (see *Batching QA*), not a per-item one, so
+  parallelism doesn't apply to it the same way.
 - Prefer `start`/`opened`/`land`/`finish` over `set-status` plus hand-rolled
   git. They commit `tasks/` changes before a worktree spawn can read stale
   state, and `land` does the post-merge `pull --rebase` in the right place
