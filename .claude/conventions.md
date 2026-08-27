@@ -122,6 +122,22 @@ signal `/gdo-run` treats as "safe to execute autonomously." Nothing in
 having happened.
 
 
+## Models
+
+Every `Agent` call in this framework passes `model` explicitly — never rely
+on a spawned agent's own frontmatter, since the fallback stand-in path
+(spawning a custom type that isn't loaded this session) skips it. This is
+the canonical table; every caller (`gdo-orchestrator`, `/gdo-run`,
+`/gdo-implement`, `/gdo-review`, `/gdo-qa-run`) uses these values.
+
+| Agent | Model | Why |
+|---|---|---|
+| `gdo-orchestrator` | opus | Holds judgment and state across an entire epic's worth of spawns. |
+| `gdo-implementer` | sonnet | Writes code against a concrete, already-scoped ticket spec. |
+| `gdo-artist` | haiku | Runs a script to generate placeholder art; minimal judgment required. |
+| `gdo-reviewer` | opus | The real quality gate — adversarial verification against acceptance criteria, on the branch, before anything merges. |
+| `gdo-qa` | sonnet | Re-verifies criteria a reviewer already checked once, on a tree that's usually unchanged; not the primary gate, so it doesn't need the strongest model. |
+
 ## Branch and PR conventions
 
 - Branch: `ticket/TICKET-NNN-<slug>` (matches the ticket filename slug).
@@ -185,15 +201,18 @@ ticket — and the caller already has all of it in context.
 
 ### The QA variant
 
-`gdo-qa` is normally spawned once for a **batch** of merged tickets, not per
-ticket. Its Brief repeats a block per ticket and adds a **scope** to each:
+`gdo-qa` is normally spawned once per epic, draining the whole `merged`
+queue in the *Finishing up* phase rather than mid-run — see *Batching QA*
+in `gdo-orchestrator.md`. Its Brief repeats a block per ticket and adds a
+**scope** to each, plus one batch-level **`Explore`** flag:
 
 ```
 ## Brief
 
 QA pass over 3 tickets merged to `main`.
+Explore: no
 
-### TICKET-003 - Player movement   [scope: exploratory-only]
+### TICKET-003 - Player movement   [scope: verified]
 <ticket body verbatim>
 
 ### TICKET-004 - Camera follow   [scope: full]
@@ -207,9 +226,16 @@ QA pass over 3 tickets merged to `main`.
 
 | `land` said | scope | why |
 |---|---|---|
-| `trivial` | `exploratory-only` | Nothing else landed since the branch point, so the merged tree is what `gdo-reviewer` already verified. Re-running those criteria re-derives a known answer. |
+| `trivial` | `verified` | Nothing else landed since the branch point, so the merged tree is what `gdo-reviewer` already verified. Re-running those criteria re-derives a known answer. |
 | `NON-TRIVIAL` | `full` | Other work landed underneath it; the merge itself may have broken something no branch review could see. |
-| `UNKNOWN`, or you don't have the line | `full` | Never guess `exploratory-only` to save a spawn - that reports criteria as met that nobody ran. |
+| `UNKNOWN`, or you don't have the line | `full` | Never guess `verified` to save a spawn - that reports criteria as met that nobody ran. |
+
+`Explore` defaults to `no` — for a small project, an open-ended
+exploratory pass on every QA batch costs more spawn time than the risk
+usually justifies, so it's opt-in. Set it to `yes` only when at least one
+ticket in the batch is scope `full` (something landed underneath it —
+exactly the case where a cross-ticket interaction bug could hide) or when
+a human asks for a deeper pass explicitly.
 
 Two rules for whoever builds one:
 

@@ -36,8 +36,9 @@ Read `.claude/conventions.md` once at the start of your run and reuse that
 text in every Brief — it doesn't change between tickets.
 
 **Always pass `model` explicitly on the `Agent` call** — `sonnet` for
-`gdo-implementer`, `haiku` for `gdo-artist`, `opus` for `gdo-reviewer` and
-`gdo-qa`. The table and the reasoning are in `.claude/conventions.md`. Do
+`gdo-implementer` and `gdo-qa`, `haiku` for `gdo-artist`, `opus` for
+`gdo-reviewer`. The table and the reasoning are in `.claude/conventions.md`
+(*Models*). Do
 not rely on the agent files' own `model:` frontmatter: that is only read
 when the agent runs as its named type, and the fallback below means it
 often won't be.
@@ -117,12 +118,11 @@ Given an epic ID:
    - **`changes-requested`** — a partially-completed rework cycle (e.g. you
      were interrupted between review and the fix). Move it to
      `in-progress` (commit) and handle it as the "rework pass" case above.
-   - **`merged`** — **don't QA it yet.** `merged` is a resting state and
-     QA batches; see *Batching QA* below. The one exception: if `land`
-     reported `qa-scope: NON-TRIVIAL` for this ticket, QA it on its own
-     right away — other work landed underneath it, which is precisely the
-     case where the merge itself can break something no branch review could
-     have seen.
+   - **`merged`** — **don't QA it yet, regardless of `qa-scope`.** `merged`
+     is a resting state; QA runs exactly once per epic, in *Finishing up*,
+     over the whole queue at once — see *Batching QA* below. Carry each
+     ticket's `qa-scope` forward (you'll need it to build the QA Brief
+     later) but don't act on it mid-run.
    - **`qa`** — a QA pass was interrupted mid-flight. Re-run it for this
      ticket individually per `.claude/skills/gdo-qa-run/SKILL.md`.
 
@@ -176,18 +176,22 @@ aren't as independent as their `touches:` claim.
 
 Review happens on the branch; QA happens on mainline. Running QA once per
 ticket means a fresh agent spawn per ticket that mostly re-verifies criteria
-`gdo-reviewer` already verified on a tree that hasn't changed since. Batch
-it instead:
+`gdo-reviewer` already verified on a tree that hasn't changed since. For a
+project this size, even batching every few tickets is more QA spawns than
+the risk justifies — so batch maximally instead:
 
 - `python .claude/scripts/gdo_board.py qa-queue --epic <EPIC-ID> --json`
   is the queue — everything at `merged`.
-- **Drain it when the queue reaches 3, or when nothing else is
-  implementable** (whichever comes first), following
-  `.claude/skills/gdo-qa-run/SKILL.md` — one `gdo-qa` spawn for the whole
-  queue, with each ticket's scope in the Brief.
+- **Don't drain it mid-run.** Let it accumulate through the whole epic and
+  drain it exactly once, in *Finishing up* below, when nothing else is
+  implementable — one `gdo-qa` spawn for the entire epic's merged tickets,
+  following `.claude/skills/gdo-qa-run/SKILL.md`, with each ticket's scope
+  in the Brief plus the batch-level `Explore` flag (see *Models* /
+  *The Brief* in `.claude/conventions.md` — `Explore: yes` only if at least
+  one ticket in the batch is scope `full`, `no` otherwise).
 - Carry each ticket's `qa-scope` from what `land` printed at merge time. If
-  you no longer have it, use `full`. Never guess `exploratory-only` to save
-  a spawn — that reports criteria as met that nobody ran.
+  you no longer have it, use `full`. Never guess `verified` to save a
+  spawn — that reports criteria as met that nobody ran.
 - Clear the clean ones together with a single
   `gdo_board.py finish <ID> <ID> ...`; reopen only what actually regressed.
 - The queue **must be empty** before the epic can be `done` — a ticket at

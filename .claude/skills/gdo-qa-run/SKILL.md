@@ -34,17 +34,23 @@ If the queue is empty, say so and stop.
 ## Running QA
 
 1. Spawn **one** `gdo-qa` agent (`Agent` tool, `isolation: "worktree"`,
-   **`model: "opus"`** — pass it explicitly, see *Models* in
+   **`model: "sonnet"`** — pass it explicitly, see *Models* in
    `.claude/conventions.md`) for the whole queue, with a **`## Brief`** per `.claude/conventions.md`
    carrying one block per ticket: ID, title, the ticket body verbatim (it's
    what gets re-verified, so it must be complete), and that ticket's
-   **scope**.
+   **scope** — plus one batch-level **`Explore`** flag.
 
    Scope comes from what `land` printed when the ticket merged: `trivial`
-   → `exploratory-only`, `NON-TRIVIAL` or `UNKNOWN` → `full`. If you don't
-   have that line — a different session merged it, or it scrolled away —
-   use `full`. Guessing `exploratory-only` to save time is how a real
-   regression gets reported as "met" without anyone running it.
+   → `verified`, `NON-TRIVIAL` or `UNKNOWN` → `full`. If you don't have
+   that line — a different session merged it, or it scrolled away — use
+   `full`. Guessing `verified` to save time is how a real regression gets
+   reported as "met" without anyone running it.
+
+   `Explore` defaults to `no` — the exploratory pass is opt-in, not
+   automatic, since it's the most expensive part of a QA pass relative to
+   what it usually catches on a small project. Set it to `yes` only if at
+   least one ticket in the batch is scope `full`, or if the user running
+   this skill explicitly asked for a deeper pass.
 
    If the custom agent type isn't loaded this session, instruct it to read
    and follow `.claude/agents/gdo-qa.md` directly, same pattern as the
