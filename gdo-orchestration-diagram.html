@@ -460,7 +460,7 @@
         <tr><td>gdo-implementer</td><td>Writes the code, verifies it against the ticket's own acceptance criteria, commits, opens or updates the PR.</td><td>isolated worktree</td></tr>
         <tr><td>gdo-artist</td><td>Same job, for an ART-NNN ticket — generates original placeholder art (checkerboard PNG / silent WAV), never third-party assets.</td><td>isolated worktree</td></tr>
         <tr><td>gdo-reviewer</td><td>Checks out the real branch, re-verifies every criterion by running it, posts REQUEST_CHANGES findings as a PR comment.</td><td>isolated worktree</td></tr>
-        <tr><td>gdo-qa</td><td>Re-verifies on actual mainline post-merge, plus a scoped exploratory pass beyond the ticket's literal scope.</td><td>isolated worktree</td></tr>
+        <tr><td>gdo-qa</td><td>Re-verifies on actual mainline post-merge, batched once per epic; an exploratory pass beyond the ticket's literal scope is opt-in, not automatic.</td><td>isolated worktree</td></tr>
         <tr><td>gdo-design-reviewer</td><td>Critiques the GDD before MVP scoping unlocks. Design-time only — not part of the execution loop below the gate.</td><td>isolated worktree</td></tr>
       </tbody>
     </table>
