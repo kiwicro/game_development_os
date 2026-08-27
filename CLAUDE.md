@@ -158,6 +158,15 @@ checkout. Committing a ticket's `merged` status locally and pushing right
 after, without a `git pull --rebase origin main` in between, gets rejected
 as non-fast-forward. `land` does the rebase-pull in the right place.
 
+**A ticket's branch is very often still checked out somewhere when `land`
+runs.** Implementer/reviewer worktrees aren't pruned until epic end (see
+*Finishing up* in `gdo-orchestrator.md`), so `gh pr merge --delete-branch`
+routinely fails to delete the local branch — git refuses because a
+worktree has it checked out — even though the merge itself, which happens
+via the API first, went through fine. `land` treats that specific failure
+as a cleanup problem, not a merge failure: it confirms the PR is actually
+`MERGED` via `gh pr view` before proceeding, and only raises if it isn't.
+
 ## Stopping and resuming a run
 
 `/gdo-run` state lives in `tasks/` + git, not in the orchestrator agent's

@@ -698,8 +698,32 @@ def cmd_land(args):
                 drift_count = int(cnt.stdout.strip())
 
     # --- Merge, resync, record --------------------------------------------
-    run(["gh", "pr", "merge", pr, "--squash", "--delete-branch"])
-    print(f"  merged {pr}")
+    # `--delete-branch` fails (nonzero exit) when the branch is still
+    # checked out in a worktree - an implementer/reviewer spawn's, most
+    # likely, since those aren't pruned until epic end. The merge itself
+    # happens via the API before that delete step, so it goes through
+    # regardless; treat a post-merge delete failure as a cleanup problem,
+    # not a reason to skip the status write.
+    merge = run(["gh", "pr", "merge", pr, "--squash", "--delete-branch"], check=False)
+    if merge.returncode != 0:
+        check_state = run(["gh", "pr", "view", pr, "--json", "state"], check=False)
+        merged_anyway = False
+        if check_state.returncode == 0:
+            try:
+                merged_anyway = json.loads(check_state.stdout).get("state") == "MERGED"
+            except ValueError:
+                pass
+        if not merged_anyway:
+            detail = ((merge.stdout or "") + (merge.stderr or "")).strip()
+            raise WorkflowError(f"{args.id}: `gh pr merge` failed and the PR is not merged:\n{detail}")
+        print(f"  merged {pr} (branch delete failed - likely still checked out in a "
+              f"worktree; cleaning up separately)")
+        # Best-effort: `gh` may or may not have deleted the remote branch
+        # before hitting the local-delete error. Don't fail `land` over
+        # cleanup either way.
+        run(["git", "push", "origin", "--delete", branch], check=False)
+    else:
+        print(f"  merged {pr}")
     run(["git", "pull", "--rebase", "origin", base])
     apply_transition(args.id, "merged", force=args.force)
     git_commit([path], f"{args.id}: merged")
